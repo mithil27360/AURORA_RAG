@@ -1,0 +1,28 @@
+# Core Framework
+fastapi
+uvicorn[standard]
+pydantic>=2.5.0
+
+# RAG Components
+chromadb
+sentence-transformers
+groq
+
+# Google Sheets
+gspread
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+
+# Utilities
+python-dotenv
+pandas
+numpy
+openpyxl
+
+# Background Tasks
+APScheduler
+
+# Production
+slowapi
+python-multipart

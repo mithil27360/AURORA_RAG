@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aurora Fest - ISTE Assistant</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Extracted Branding Colors from ISTE Images */
+            --iste-navy: #0f172a;
+            /* Dark background from banner */
+            --iste-teal: #2180a0;
+            /* The teal color from the ISTE logo */
+            --iste-light: #f1f5f9;
+            /* Light gray for background */
+            --white: #ffffff;
+
+            --chat-bg: #f8fafc;
+            --user-bubble: var(--iste-navy);
+            --bot-bubble: #ffffff;
+
+            --shadow-card: 0 10px 30px -5px rgba(0, 0, 0, 0.1);
+            --shadow-float: 0 5px 15px rgba(33, 128, 160, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #e2e8f0;
+            /* Darker bg for laptop to frame the app */
+            height: 100vh;
+            height: -webkit-fill-available;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* --- Main App Container --- */
+        .app-container {
+            width: 100%;
+            max-width: 500px;
+            /* Optimal mobile/chat width on laptop */
+            height: 90vh;
+            background: var(--chat-bg);
+            border-radius: 24px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-card);
+            position: relative;
+        }
+
+        /* Mobile Optimization: Full screen */
+        @media (max-width: 600px) {
+            .app-container {
+                max-width: 100%;
+                height: 100vh;
+                border-radius: 0;
+            }
+        }
+
+        /* --- HEADER SECTION --- */
+        .header {
+            background-color: var(--iste-navy);
+            position: relative;
+            z-index: 10;
+        }
+
+        /* The Banner Image */
+        .banner-img {
+            width: 100%;
+            height: 100px;
+            /* Adjustable height */
+            object-fit: cover;
+            object-position: center;
+            opacity: 0.9;
+            display: block;
+        }
+
+        /* Info Bar under banner */
+        .header-bar {
+            background: var(--white);
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            border-bottom: 1px solid #e2e8f0;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+        }
+
+        .club-logo {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 2px solid var(--white);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            object-fit: cover;
+            /* Negative margin to pull it up into the banner area slightly */
+            margin-top: -30px;
+            background: white;
+            position: relative;
+            z-index: 11;
+        }
+
+        .header-text {
+            flex: 1;
+        }
+
+        .header-text h1 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--iste-navy);
+            margin-bottom: 2px;
+        }
+
+        .header-text p {
+            font-size: 12px;
+            color: var(--iste-teal);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* --- CHAT AREA --- */
+        .chat-area {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            scroll-behavior: smooth;
+        }
+
+        .msg {
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            max-width: 85%;
+            animation: slideUp 0.3s ease;
+        }
+
+        .msg.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .avatar-small {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+            background: #ddd;
+        }
+
+        .bubble {
+            padding: 12px 16px;
+            font-size: 14px;
+            line-height: 1.5;
+            position: relative;
+            word-wrap: break-word;
+        }
+
+        .msg.bot .bubble {
+            background: var(--bot-bubble);
+            color: #334155;
+            border-radius: 18px 18px 18px 2px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+        }
+
+        .msg.user .bubble {
+            background: var(--user-bubble);
+            /* Navy Blue */
+            color: white;
+            border-radius: 18px 18px 2px 18px;
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.2);
+        }
+
+        /* --- INPUT SECTION --- */
+        .input-area {
+            padding: 15px 20px;
+            background: var(--white);
+            border-top: 1px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            background: #f1f5f9;
+            border-radius: 25px;
+            padding: 5px 15px;
+            display: flex;
+            align-items: center;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .input-wrapper:focus-within {
+            border-color: var(--iste-teal);
+            background: white;
+            box-shadow: 0 0 0 3px rgba(33, 128, 160, 0.1);
+        }
+
+        input {
+            width: 100%;
+            border: none;
+            background: transparent;
+            padding: 12px 5px;
+            font-size: 15px;
+            color: #334155;
+            outline: none;
+        }
+
+        .send-btn {
+            width: 45px;
+            height: 45px;
+            background: var(--iste-teal);
+            border-radius: 50%;
+            border: none;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s;
+            box-shadow: var(--shadow-float);
+            flex-shrink: 0;
+        }
+
+        .send-btn:hover {
+            transform: scale(1.05);
+            background: #1a6b85;
+        }
+
+        .send-btn:active {
+            transform: scale(0.95);
+        }
+
+        .send-btn:disabled {
+            background: #cbd5e1;
+            cursor: not-allowed;
+        }
+
+        /* Animations */
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Typing Dots */
+        .typing {
+            display: flex;
+            gap: 4px;
+            padding: 5px 0;
+        }
+
+        .dot {
+            width: 6px;
+            height: 6px;
+            background: #94a3b8;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite;
+        }
+
+        .dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-4px);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="app-container">
+        <div class="header">
+            <img src="iste_manipal_cover.jpeg" alt="ISTE Banner" class="banner-img"
+                onerror="this.style.background='#0f172a'">
+
+            <div class="header-bar">
+                <img src="1630568350176.jpeg" alt="ISTE Logo" class="club-logo">
+
+                <div class="header-text">
+                    <h1>Aurora Fest Assistant</h1>
+                    <p>ISTE Manipal Chapter</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-area" id="msgs">
+            <div class="msg bot">
+                <img src="1630568350176.jpeg" class="avatar-small" alt="AI">
+                <div class="bubble">
+                    👋 <b>Welcome to Aurora Fest!</b><br>
+                    I am the official ISTE event assistant. Ask me about:<br>
+                    • Hackathon Schedules<br>
+                    • Workshop Venues<br>
+                    • Registration Details
+                </div>
+            </div>
+        </div>
+
+        <div class="input-area">
+            <div class="input-wrapper">
+                <input id="q" type="text" placeholder="Type your question..." autocomplete="off">
+            </div>
+            <button id="btn" class="send-btn" onclick="send()">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z">
+                    </path>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Auto-detect API URL based on environment
+        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:8000'
+            : ''; // Same origin in production
+
+        const CLUB_ICON = "1630568350176.jpeg";
+
+        const msgs = document.getElementById("msgs");
+        const q = document.getElementById("q");
+        const btn = document.getElementById("btn");
+
+        // Health check and status updates
+        let lastSyncTime = null;
+
+        async function checkHealth() {
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                if (response.ok) {
+                    const data = await response.json();
+                    lastSyncTime = data.last_sync;
+                    console.log('✅ System healthy, docs:', data.vector_db_count);
+                }
+            } catch (error) {
+                console.warn('⚠️ Health check failed:', error);
+            }
+        }
+
+        // Check health on load and every 30 seconds
+        checkHealth();
+        setInterval(checkHealth, 30000);
+
+        q.addEventListener("keypress", (e) => { if (e.key === "Enter") send(); });
+
+        async function send() {
+            const query = q.value.trim();
+            if (!query) return;
+
+            // 1. Add User Message
+            add_msg(query, "user");
+            q.value = "";
+            btn.disabled = true;
+
+            // 2. Add Typing Indicator with natural delay
+            const loadingId = add_typing();
+
+            // Natural typing simulation (min 300ms, max 1500ms based on expected response)
+            const minDelay = 300;
+            await new Promise(resolve => setTimeout(resolve, minDelay));
+
+            try {
+                // 3. Fetch from Backend
+                const response = await fetch(`${API_URL}/chat`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ query: query })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                // Remove typing indicator
+                remove_typing(loadingId);
+
+                // 4. Add Bot Response
+                if (data.answer) {
+                    add_msg(data.answer, "bot");
+                } else {
+                    add_msg("⚠️ I didn't quite understand that. Could you rephrase your question?", "bot");
+                }
+
+            } catch (error) {
+                remove_typing(loadingId);
+                console.error('Chat error:', error);
+
+                // Improved error messages
+                let errorMsg = "❌ I'm having trouble connecting right now. ";
+
+                if (error.message.includes('Failed to fetch')) {
+                    errorMsg += "Please make sure the server is running at " + API_URL;
+                } else if (error.message.includes('503')) {
+                    errorMsg += "The system is still initializing. Please wait a moment and try again.";
+                } else if (error.message.includes('429')) {
+                    errorMsg += "Too many requests. Please wait a moment before trying again.";
+                } else {
+                    errorMsg += "Please try again in a moment.";
+                }
+
+                add_msg(errorMsg, "bot");
+            }
+
+            btn.disabled = false;
+            q.focus();
+        }
+
+        function add_msg(text, type) {
+            const row = document.createElement("div");
+            row.className = `msg ${type}`;
+
+            if (type === "bot") {
+                const img = document.createElement("img");
+                img.src = CLUB_ICON;
+                img.className = "avatar-small";
+                row.appendChild(img);
+            }
+
+            const bubble = document.createElement("div");
+            bubble.className = "bubble";
+            bubble.innerHTML = text.replace(/\n/g, "<br>"); // Allow line breaks
+
+            row.appendChild(bubble);
+            msgs.appendChild(row);
+            msgs.scrollTop = msgs.scrollHeight;
+        }
+
+        function add_typing() {
+            const id = "typing-" + Date.now();
+            const row = document.createElement("div");
+            row.className = "msg bot";
+            row.id = id;
+
+            const img = document.createElement("img");
+            img.src = CLUB_ICON;
+            img.className = "avatar-small";
+
+            const bubble = document.createElement("div");
+            bubble.className = "bubble";
+            bubble.innerHTML = `<div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
+
+            row.appendChild(img);
+            row.appendChild(bubble);
+            msgs.appendChild(row);
+            msgs.scrollTop = msgs.scrollHeight;
+            return id;
+        }
+
+        function remove_typing(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        // Auto focus on desktop
+        if (window.innerWidth > 600) q.focus();
+
+        // Log system info
+        console.log('🚀 Aurora Fest Assistant');
+        console.log('📡 API:', API_URL);
+        console.log('💬 Ready to chat!');
+    </script>
+</body>
+
+</html>
