@@ -2,6 +2,7 @@
 fastapi
 uvicorn[standard]
 pydantic>=2.5.0
+pydantic-settings
 
 # RAG Components
 chromadb
@@ -26,3 +27,6 @@ APScheduler
 # Production
 slowapi
 python-multipart
+redis>=5.0.0
+better-profanity
+gunicorn  # Multi-worker production server for 200+ users

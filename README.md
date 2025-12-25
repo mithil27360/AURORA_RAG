@@ -65,15 +65,18 @@ This system provides an intelligent chatbot interface powered by advanced natura
 
 ```
 iste-rag/
-├── aurora_v2.py                 # Main application server
-├── analytics.html               # Analytics dashboard
-├── login.html                   # Authentication interface
-├── chat.html                    # User-facing chatbot UI
+├── app/                         # Modular application package
+│   ├── api/                     # API routes and dependencies
+│   ├── core/                    # Configuration and settings
+│   ├── db/                      # Database clients (Redis, SQLite)
+│   ├── services/                # Business logic (LLM, Vector, Sheets, Security)
+│   └── static/                  # Frontend assets (HTML, CSS, JS, Images)
 ├── requirements.txt             # Python dependencies
 ├── .env                         # Environment configuration (not in git)
 ├── .env.example                 # Environment template
 ├── credentials.json             # Google API credentials (not in git)
 ├── start.sh                     # Server launcher script
+├── Dockerfile                   # container definition
 ├── rag_interactions.db          # SQLite database (not in git)
 └── chroma_data/                 # Vector database storage (not in git)
 ```
@@ -205,7 +208,7 @@ Press `Ctrl+C` in the terminal running the server.
 
 Run the server in development mode:
 ```bash
-python aurora_v2.py
+uvicorn app.main:app --reload
 ```
 
 ### Logging

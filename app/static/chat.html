@@ -306,11 +306,11 @@
 
     <div class="app-container">
         <div class="header">
-            <img src="iste_manipal_cover.jpeg" alt="ISTE Banner" class="banner-img"
+            <img src="/static/iste_manipal_cover.jpeg" alt="ISTE Banner" class="banner-img"
                 onerror="this.style.background='#0f172a'">
 
             <div class="header-bar">
-                <img src="1630568350176.jpeg" alt="ISTE Logo" class="club-logo">
+                <img src="/static/iste_logo.jpeg" alt="ISTE Logo" class="club-logo">
 
                 <div class="header-text">
                     <h1>Aurora Fest Assistant</h1>
@@ -321,7 +321,7 @@
 
         <div class="chat-area" id="msgs">
             <div class="msg bot">
-                <img src="1630568350176.jpeg" class="avatar-small" alt="AI">
+                <img src="/static/iste_logo.jpeg" class="avatar-small" alt="AI">
                 <div class="bubble">
                     👋 <b>Welcome to Aurora Fest!</b><br>
                     I am the official ISTE event assistant. Ask me about:<br>
@@ -346,12 +346,10 @@
     </div>
 
     <script>
-        // Auto-detect API URL based on environment
-        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:8000'
-            : ''; // Same origin in production
+        // API URL: Use same-origin unless explicitly running dev server on port 8000
+        const API_URL = window.location.port === '8000' ? '' : '';
 
-        const CLUB_ICON = "1630568350176.jpeg";
+        const CLUB_ICON = "/static/iste_logo.jpeg";
 
         const msgs = document.getElementById("msgs");
         const q = document.getElementById("q");
@@ -379,6 +377,13 @@
 
         q.addEventListener("keypress", (e) => { if (e.key === "Enter") send(); });
 
+        // XSS Protection: Escape HTML entities
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         async function send() {
             const query = q.value.trim();
             if (!query) return;
@@ -403,18 +408,32 @@
                     body: JSON.stringify({ query: query })
                 });
 
+                // Remove typing indicator
+                remove_typing(loadingId);
+
+                // Handle different response types
                 if (!response.ok) {
-                    throw new Error(`Server returned ${response.status}`);
+                    const errorData = await response.json().catch(() => ({}));
+                    const errorDetail = errorData.detail || "Something went wrong";
+
+                    if (response.status === 400) {
+                        // Blocked content - show server's moderation message
+                        add_msg("⚠️ " + errorDetail, "bot");
+                    } else if (response.status === 429) {
+                        add_msg("⏰ Too many requests. Please wait a moment before trying again.", "bot");
+                    } else if (response.status === 503) {
+                        add_msg("⏳ The system is still initializing. Please wait a moment and try again.", "bot");
+                    } else {
+                        add_msg("❌ " + errorDetail, "bot");
+                    }
+                    return;
                 }
 
                 const data = await response.json();
 
-                // Remove typing indicator
-                remove_typing(loadingId);
-
-                // 4. Add Bot Response
+                // 4. Add Bot Response with feedback buttons
                 if (data.answer) {
-                    add_msg(data.answer, "bot");
+                    add_msg(data.answer, "bot", data.interaction_id);
                 } else {
                     add_msg("⚠️ I didn't quite understand that. Could you rephrase your question?", "bot");
                 }
@@ -428,10 +447,6 @@
 
                 if (error.message.includes('Failed to fetch')) {
                     errorMsg += "Please make sure the server is running at " + API_URL;
-                } else if (error.message.includes('503')) {
-                    errorMsg += "The system is still initializing. Please wait a moment and try again.";
-                } else if (error.message.includes('429')) {
-                    errorMsg += "Too many requests. Please wait a moment before trying again.";
                 } else {
                     errorMsg += "Please try again in a moment.";
                 }
@@ -443,7 +458,7 @@
             q.focus();
         }
 
-        function add_msg(text, type) {
+        function add_msg(text, type, interactionId = null) {
             const row = document.createElement("div");
             row.className = `msg ${type}`;
 
@@ -456,11 +471,49 @@
 
             const bubble = document.createElement("div");
             bubble.className = "bubble";
-            bubble.innerHTML = text.replace(/\n/g, "<br>"); // Allow line breaks
+            // XSS-safe: Escape HTML first, then add line breaks
+            bubble.innerHTML = escapeHtml(text).replace(/\n/g, "<br>");
+
+            // Add feedback buttons for bot messages with interaction_id
+            if (type === "bot" && interactionId) {
+                const feedbackDiv = document.createElement("div");
+                feedbackDiv.className = "feedback-buttons";
+                feedbackDiv.style.cssText = "display: flex; gap: 8px; margin-top: 8px; font-size: 12px;";
+                feedbackDiv.innerHTML = `
+                    <button onclick="submitFeedback('${interactionId}', 'helpful', this)" 
+                            style="padding: 4px 10px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; cursor: pointer; font-size: 11px; display: flex; align-items: center; gap: 4px;">
+                        👍 Helpful
+                    </button>
+                    <button onclick="submitFeedback('${interactionId}', 'not_helpful', this)" 
+                            style="padding: 4px 10px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; cursor: pointer; font-size: 11px; display: flex; align-items: center; gap: 4px;">
+                        👎 Not helpful
+                    </button>
+                `;
+                bubble.appendChild(feedbackDiv);
+            }
 
             row.appendChild(bubble);
             msgs.appendChild(row);
             msgs.scrollTop = msgs.scrollHeight;
+        }
+
+        // Feedback submission function
+        async function submitFeedback(interactionId, feedback, button) {
+            try {
+                const response = await fetch(`${API_URL}/feedback`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ interaction_id: interactionId, feedback: feedback })
+                });
+
+                if (response.ok) {
+                    // Replace buttons with thank you message
+                    const feedbackDiv = button.parentElement;
+                    feedbackDiv.innerHTML = `<span style="color: #64748b; font-size: 11px;">✓ Thanks for your feedback!</span>`;
+                }
+            } catch (error) {
+                console.error('Feedback error:', error);
+            }
         }
 
         function add_typing() {

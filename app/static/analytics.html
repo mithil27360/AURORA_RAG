@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aurora Analytics</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg: #F8FAFC;
+            --bg-card: #FFFFFF;
+            --border: #E5E7EB;
+            --border-light: #F1F5F9;
+            --text: #0F172A;
+            --text-secondary: #374151;
+            --text-muted: #64748B;
+            --text-faint: #94A3B8;
+            --accent: #2563EB;
+            --success: #16A34A;
+            --error: #DC2626;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1140px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header h1 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .header-subtitle {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .header-status {
+            text-align: right;
+        }
+
+        .status-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+
+        .status-dot.degraded {
+            background: #F59E0B;
+        }
+
+        .status-dot.error {
+            background: var(--error);
+        }
+
+        .data-freshness {
+            font-size: 11px;
+            color: var(--text-faint);
+        }
+
+        .data-freshness.stale {
+            color: var(--error);
+        }
+
+        /* Alert Banner */
+        .alert-banner {
+            background: #FEF2F2;
+            border: 1px solid #FECACA;
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin-bottom: 20px;
+            font-size: 12px;
+            color: #991B1B;
+            display: none;
+        }
+
+        .alert-banner.visible {
+            display: block;
+        }
+
+        /* KPI Grid */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1px;
+            background: var(--border);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+
+        .kpi-card {
+            background: var(--bg-card);
+            padding: 16px 20px;
+        }
+
+        .kpi-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text);
+            line-height: 1.2;
+        }
+
+        .kpi-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-top: 2px;
+        }
+
+        .kpi-note {
+            font-size: 10px;
+            color: var(--text-faint);
+            margin-top: 6px;
+        }
+
+        .kpi-note.warning {
+            color: var(--error);
+        }
+
+        /* Decision Metric */
+        .decision-metric {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .decision-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .decision-value {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .decision-value.good {
+            color: var(--success);
+        }
+
+        .decision-value.bad {
+            color: var(--error);
+        }
+
+        /* Section */
+        .section {
+            margin-bottom: 24px;
+        }
+
+        .section-header {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        /* Filters */
+        .filters {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .filter-label {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        select,
+        input[type="number"] {
+            padding: 5px 8px;
+            font-size: 12px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-card);
+            color: var(--text);
+        }
+
+        select:focus,
+        input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        /* Charts Row */
+        .charts-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .chart-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .chart-title {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        .chart-container {
+            height: 160px;
+        }
+
+        /* Intent List */
+        .intent-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 0;
+        }
+
+        .intent-name {
+            width: 70px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .intent-bar {
+            flex: 1;
+            height: 6px;
+            background: var(--border-light);
+            border-radius: 3px;
+        }
+
+        .intent-bar-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+
+        .intent-count {
+            width: 40px;
+            text-align: right;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        /* Table */
+        .table-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .table-toolbar {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-title {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .table-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 5px 10px;
+            font-size: 11px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background: var(--bg);
+        }
+
+        .btn.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 8px 14px;
+            font-size: 10px;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            padding: 10px 14px;
+            font-size: 12px;
+            border-bottom: 1px solid var(--border-light);
+            color: var(--text-secondary);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+        }
+
+        .text-muted {
+            color: var(--text-faint);
+        }
+
+        .text-error {
+            color: var(--error);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            font-size: 10px;
+            font-weight: 500;
+            border-radius: 3px;
+            background: var(--border-light);
+            color: var(--text-muted);
+        }
+
+        .badge-error {
+            background: #FEE2E2;
+            color: var(--error);
+        }
+
+        .truncate {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 32px;
+            color: var(--text-faint);
+            font-size: 12px;
+        }
+
+        /* Responsive */
+        @media (max-width: 800px) {
+            .kpi-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .charts-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 500px) {
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div>
+                <h1>Aurora Analytics</h1>
+                <div class="header-subtitle">RAG Chatbot Monitoring</div>
+            </div>
+            <div class="header-status">
+                <button onclick="syncSheetData()" id="syncBtn"
+                    style="padding: 6px 12px; font-size: 11px; background: #2563EB; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 12px;">
+                    🔄 Sync Sheets
+                </button>
+                <div class="status-row">
+                    <span class="status-dot" id="statusDot"></span>
+                    <span id="statusText">Operational</span>
+                </div>
+                <div class="data-freshness" id="dataFreshness">Updated just now</div>
+            </div>
+        </header>
+
+        <!-- Alert Banner (hidden by default) -->
+        <div class="alert-banner" id="alertBanner">
+            Some metrics may be unavailable. Check system health.
+        </div>
+
+        <!-- Primary KPIs -->
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-value" id="totalQueries">—</div>
+                <div class="kpi-label">Queries</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-value" id="avgConfidence">—</div>
+                <div class="kpi-label">Avg Confidence</div>
+                <div class="kpi-note" id="confNote"></div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-value" id="cacheRate">—</div>
+                <div class="kpi-label">Cache Hit Rate</div>
+                <div class="kpi-note" id="cacheNote"></div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-value" id="avgResponse">—</div>
+                <div class="kpi-label">Avg Latency</div>
+            </div>
+        </div>
+
+        <!-- Decision Metric -->
+        <div class="decision-metric">
+            <div>
+                <div class="decision-label">Queries requiring review (confidence &lt; 50%)</div>
+            </div>
+            <div class="decision-value" id="reviewRate">—</div>
+        </div>
+
+        <!-- Feedback Summary -->
+        <div class="decision-metric" style="margin-top: -12px;">
+            <div>
+                <div class="decision-label">User Feedback</div>
+            </div>
+            <div style="display: flex; gap: 20px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 20px; font-weight: 600; color: #16A34A;" id="thumbsUp">0</div>
+                    <div style="font-size: 10px; color: #64748b;">👍 Helpful</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 20px; font-weight: 600; color: #DC2626;" id="thumbsDown">0</div>
+                    <div style="font-size: 10px; color: #64748b;">👎 Not Helpful</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-row">
+            <div class="chart-card">
+                <div class="chart-title">Cache Performance</div>
+                <div class="chart-container">
+                    <canvas id="cacheChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-title">Intent Distribution</div>
+                <div id="intentList">
+                    <div class="empty-state">No data available</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Queries -->
+        <div class="section">
+            <div class="section-header">Recent Queries</div>
+            <div class="filters">
+                <div class="filter-group">
+                    <span class="filter-label">Intent:</span>
+                    <select id="filterIntent" onchange="applyFilters()">
+                        <option value="">All</option>
+                        <option value="general">general</option>
+                        <option value="schedule">schedule</option>
+                        <option value="venue">venue</option>
+                        <option value="contact">contact</option>
+                        <option value="blocked">blocked</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <span class="filter-label">Min confidence:</span>
+                    <input type="number" id="filterConfidence" min="0" max="100" placeholder="0" style="width: 60px;"
+                        onchange="applyFilters()">
+                </div>
+                <div class="filter-group">
+                    <button class="btn" id="filterBlocked" onclick="toggleBlockedFilter()">Blocked only</button>
+                </div>
+            </div>
+            <div class="table-card">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Query</th>
+                            <th>Intent</th>
+                            <th>Conf</th>
+                            <th>Feedback</th>
+                            <th>Latency</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recentTable">
+                        <tr>
+                            <td colspan="6" class="empty-state">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Full Logs -->
+        <div class="section">
+            <div class="section-header" style="cursor: pointer;" onclick="toggleLogs()">
+                Interaction Logs <span id="logToggle" style="font-weight: normal; font-size: 10px;">▼</span>
+            </div>
+            <div class="table-card" id="logsSection">
+                <div class="table-toolbar">
+                    <span class="table-title" id="logCount">0 interactions</span>
+                    <div class="table-actions">
+                        <button class="btn" onclick="backupDB()" id="backupBtn">💾 Backup DB</button>
+                        <button class="btn" onclick="exportCSV()">Export CSV</button>
+                    </div>
+                </div>
+                <div style="overflow-x: auto; max-height: 400px;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Time</th>
+                                <th>Query</th>
+                                <th>Answer</th>
+                                <th>Intent</th>
+                                <th>Conf</th>
+                                <th>Device</th>
+                                <th>Feedback</th>
+                                <th>Latency</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logsTable">
+                            <tr>
+                                <td colspan="9" class="empty-state">Loading interaction logs...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let cacheChart = null;
+        let logsData = [];
+        let recentData = [];
+        let lastUpdate = null;
+        let showBlockedOnly = false;
+
+        // Sync Sheet Data
+        async function syncSheetData() {
+            const btn = document.getElementById('syncBtn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Syncing...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/refresh', { method: 'POST' });
+                if (response.ok) {
+                    btn.innerHTML = '✓ Synced!';
+                    btn.style.background = '#16A34A';
+                    // Refresh data after 2 seconds (give backend time to process)
+                    setTimeout(() => {
+                        fetchData();
+                        fetchLogs();
+                        btn.innerHTML = originalText;
+                        btn.style.background = '#2563EB';
+                        btn.disabled = false;
+                    }, 2000);
+                } else {
+                    throw new Error('Sync failed');
+                }
+            } catch (e) {
+                btn.innerHTML = '✗ Failed';
+                btn.style.background = '#DC2626';
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.style.background = '#2563EB';
+                    btn.disabled = false;
+                }, 2000);
+            }
+        }
+
+        // Backup Database
+        async function backupDB() {
+            const btn = document.getElementById('backupBtn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Backing up...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/backup-logs', { method: 'POST' });
+                const data = await response.json();
+                if (response.ok) {
+                    btn.innerHTML = '✓ Backed up!';
+                    btn.style.background = '#16A34A';
+                    btn.style.color = 'white';
+                    alert('Backup created: ' + data.backup_path);
+                } else {
+                    throw new Error('Backup failed');
+                }
+            } catch (e) {
+                btn.innerHTML = '✗ Failed';
+                btn.style.background = '#DC2626';
+                btn.style.color = 'white';
+            }
+
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.style.background = '';
+                btn.style.color = '';
+                btn.disabled = false;
+            }, 2000);
+        }
+
+        // Fetch data
+        async function fetchData() {
+            try {
+                const [analytics, apiStats] = await Promise.all([
+                    fetch('/analytics').then(r => r.json()),
+                    fetch('/api-stats').then(r => r.json()).catch(() => ({ api_keys: {} }))
+                ]);
+
+                lastUpdate = new Date();
+                updateKPIs(analytics, apiStats);
+                updateCharts(analytics);
+                recentData = analytics.legacy_analytics?.recent_queries || [];
+                applyFilters();
+                updateStatus('ok');
+            } catch (e) {
+                console.error('Fetch error:', e);
+                updateStatus('error');
+            }
+        }
+
+        async function fetchLogs() {
+            try {
+                const data = await fetch('/interactions/all').then(r => r.json());
+                logsData = data.interactions || [];
+                updateLogsTable(logsData);
+                document.getElementById('logCount').textContent = `${logsData.length} interactions`;
+            } catch (e) {
+                console.error('Logs error:', e);
+                document.getElementById('logsTable').innerHTML =
+                    '<tr><td colspan="7" class="empty-state">Unable to load logs</td></tr>';
+            }
+        }
+
+        function updateKPIs(data, apiStats) {
+            const legacy = data.legacy_analytics || {};
+            const cache = data.cache_stats || {};
+            const prod = data.production_stats || {};
+
+            const total = legacy.total_queries || 0;
+            const conf = Math.round((prod.avg_confidence || 0) * 100);
+            const cacheRate = parseFloat(cache.cache_hit_rate || 0);
+            const lowConf = prod.low_confidence_count || 0;
+
+            document.getElementById('totalQueries').textContent = total.toLocaleString();
+            document.getElementById('avgConfidence').textContent = conf + '%';
+            document.getElementById('cacheRate').textContent = cacheRate.toFixed(1) + '%';
+            document.getElementById('avgResponse').textContent = Math.round(legacy.avg_response_time || 0) + 'ms';
+
+            // Confidence note
+            const confNote = document.getElementById('confNote');
+            if (conf < 50) {
+                confNote.textContent = 'Below threshold';
+                confNote.className = 'kpi-note warning';
+            } else {
+                confNote.textContent = '';
+            }
+
+            // Cache note
+            const cacheNote = document.getElementById('cacheNote');
+            if (cacheRate < 10 && total > 20) {
+                cacheNote.textContent = 'Cache warming up';
+                cacheNote.className = 'kpi-note';
+            } else {
+                cacheNote.textContent = '';
+            }
+
+            // Decision metric: % requiring review
+            const reviewPct = total > 0 ? Math.round(lowConf / total * 100) : 0;
+            const reviewEl = document.getElementById('reviewRate');
+            reviewEl.textContent = reviewPct + '%';
+            reviewEl.className = 'decision-value ' + (reviewPct > 20 ? 'bad' : 'good');
+
+            // Feedback counts
+            const feedback = data.feedback_stats || {};
+            document.getElementById('thumbsUp').textContent = feedback.thumbs_up || 0;
+            document.getElementById('thumbsDown').textContent = feedback.thumbs_down || 0;
+
+            document.getElementById('dataFreshness').textContent = 'Updated just now';
+        }
+
+        function updateCharts(data) {
+            const cache = data.cache_stats || {};
+            const prod = data.production_stats || {};
+
+            // Cache Chart
+            const ctx = document.getElementById('cacheChart').getContext('2d');
+            if (cacheChart) cacheChart.destroy();
+
+            const hits = cache.cache_hits || 0;
+            const misses = Math.max(0, (cache.cache_size || 0) - hits);
+            const saved = cache.api_calls_saved || 0;
+
+            cacheChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Hits', 'Misses', 'Saved'],
+                    datasets: [{
+                        data: [hits, misses, saved],
+                        backgroundColor: ['#2563EB', '#E5E7EB', '#2563EB'],
+                        borderRadius: 3,
+                        barThickness: 32
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, border: { display: false } },
+                        y: { grid: { color: '#F1F5F9' }, border: { display: false }, beginAtZero: true, ticks: { font: { size: 10 } } }
+                    }
+                }
+            });
+
+            // Intent List
+            const intents = prod.top_intents || {};
+            const total = Object.values(intents).reduce((a, b) => a + b, 0) || 1;
+            const list = document.getElementById('intentList');
+
+            const entries = Object.entries(intents).slice(0, 6);
+            if (entries.length === 0) {
+                list.innerHTML = '<div class="empty-state">No queries recorded</div>';
+            } else {
+                list.innerHTML = entries.map(([name, count]) => {
+                    const pct = Math.round(count / total * 100);
+                    return `
+                        <div class="intent-item">
+                            <span class="intent-name">${name}</span>
+                            <div class="intent-bar"><div class="intent-bar-fill" style="width: ${pct}%"></div></div>
+                            <span class="intent-count">${count}</span>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        function applyFilters() {
+            const intent = document.getElementById('filterIntent').value;
+            const minConf = parseInt(document.getElementById('filterConfidence').value) || 0;
+
+            let filtered = recentData;
+
+            if (intent) {
+                filtered = filtered.filter(q => q.intent === intent);
+            }
+            if (minConf > 0) {
+                filtered = filtered.filter(q => (q.confidence || 0) * 100 >= minConf);
+            }
+            if (showBlockedOnly) {
+                filtered = filtered.filter(q => q.intent === 'blocked');
+            }
+
+            updateRecentTable(filtered);
+        }
+
+        function toggleBlockedFilter() {
+            showBlockedOnly = !showBlockedOnly;
+            const btn = document.getElementById('filterBlocked');
+            btn.className = 'btn' + (showBlockedOnly ? ' active' : '');
+            applyFilters();
+        }
+
+        function updateRecentTable(queries) {
+            const tbody = document.getElementById('recentTable');
+
+            if (queries.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No matching queries</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = queries.slice(0, 15).map(q => {
+                const time = new Date(q.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                const conf = Math.round((q.confidence || 0) * 100);
+                const isBlocked = q.intent === 'blocked';
+                const feedbackIcon = q.feedback === 'helpful' ? '👍' : (q.feedback === 'not_helpful' ? '👎' : '—');
+                return `
+                    <tr>
+                        <td class="text-muted">${time}</td>
+                        <td class="truncate">${escapeHtml(q.query || '')}</td>
+                        <td>${isBlocked ? '<span class="badge badge-error">blocked</span>' : '<span class="badge">' + (q.intent || 'general') + '</span>'}</td>
+                        <td class="${conf < 50 ? 'text-error' : ''}">${conf}%</td>
+                        <td>${feedbackIcon}</td>
+                        <td class="text-muted">${Math.round(q.response_time_ms || 0)}ms</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function updateLogsTable(logs) {
+            const tbody = document.getElementById('logsTable');
+
+            if (logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No interactions logged yet</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = logs.slice(0, 100).map((log, idx) => {
+                const time = new Date(log.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                const conf = Math.round((log.confidence_score || 0) * 100);
+                const isBlocked = log.detected_intent === 'blocked';
+                const device = log.device_type || '—';
+                const browser = log.browser || '';
+                const feedbackIcon = log.feedback === 'helpful' ? '👍' : (log.feedback === 'not_helpful' ? '👎' : '—');
+                const answer = escapeHtml(log.answer || '');
+                const answerPreview = answer.substring(0, 40) + (answer.length > 40 ? '...' : '');
+                const answerId = 'answer-' + idx;
+                return `
+                    <tr>
+                        <td class="mono text-muted">${(log.interaction_id || '').substring(0, 8)}</td>
+                        <td class="text-muted">${time}</td>
+                        <td class="truncate">${escapeHtml(log.query_text || '')}</td>
+                        <td style="max-width: 200px; cursor: pointer;" onclick="toggleAnswer('${answerId}')">
+                            <span id="${answerId}-short" class="truncate" style="display: block; color: #64748b; font-size: 11px;">${answerPreview}</span>
+                            <span id="${answerId}-full" style="display: none; white-space: pre-wrap; font-size: 11px; color: #374151; max-width: 300px;">${answer}</span>
+                        </td>
+                        <td>${isBlocked ? '<span class="badge badge-error">blocked</span>' : '<span class="badge">' + (log.detected_intent || '') + '</span>'}</td>
+                        <td class="${conf < 50 ? 'text-error' : ''}">${conf}%</td>
+                        <td class="text-muted" style="font-size: 11px;">${device}${browser ? ' / ' + browser : ''}</td>
+                        <td>${feedbackIcon}</td>
+                        <td class="text-muted">${Math.round(log.response_time_ms || 0)}ms</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function toggleAnswer(id) {
+            const shortEl = document.getElementById(id + '-short');
+            const fullEl = document.getElementById(id + '-full');
+            if (shortEl.style.display !== 'none') {
+                shortEl.style.display = 'none';
+                fullEl.style.display = 'block';
+            } else {
+                shortEl.style.display = 'block';
+                fullEl.style.display = 'none';
+            }
+        }
+
+        function updateStatus(status) {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            const banner = document.getElementById('alertBanner');
+
+            if (status === 'ok') {
+                dot.className = 'status-dot';
+                text.textContent = 'Operational';
+                banner.classList.remove('visible');
+            } else if (status === 'degraded') {
+                dot.className = 'status-dot degraded';
+                text.textContent = 'Degraded';
+                banner.classList.add('visible');
+            } else {
+                dot.className = 'status-dot error';
+                text.textContent = 'Error';
+                banner.classList.add('visible');
+            }
+        }
+
+        // Check data freshness
+        function checkFreshness() {
+            if (!lastUpdate) return;
+            const age = (new Date() - lastUpdate) / 1000;
+            const el = document.getElementById('dataFreshness');
+
+            if (age > 30) {
+                el.textContent = `Updated ${Math.round(age)}s ago`;
+                el.className = 'data-freshness stale';
+            } else if (age > 10) {
+                el.textContent = `Updated ${Math.round(age)}s ago`;
+                el.className = 'data-freshness';
+            } else {
+                el.textContent = 'Updated just now';
+                el.className = 'data-freshness';
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function toggleLogs() {
+            const section = document.getElementById('logsSection');
+            const toggle = document.getElementById('logToggle');
+            const hidden = section.style.display === 'none';
+            section.style.display = hidden ? 'block' : 'none';
+            toggle.textContent = hidden ? '▼' : '▶';
+        }
+
+        function exportCSV() {
+            if (!logsData.length) return alert('No data to export');
+            const csv = [
+                ['ID', 'Timestamp', 'Query', 'Response', 'Intent', 'Confidence', 'Latency_ms'].join(','),
+                ...logsData.map(r => [
+                    r.interaction_id,
+                    r.timestamp,
+                    `"${(r.query_text || '').replace(/"/g, '""')}"`,
+                    `"${(r.answer || '').replace(/"/g, '""')}"`,
+                    r.detected_intent,
+                    r.confidence_score,
+                    r.response_time_ms
+                ].join(','))
+            ].join('\n');
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `aurora_logs_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+        }
+
+        // Init
+        fetchData();
+        fetchLogs();
+        setInterval(fetchData, 5000);
+        setInterval(fetchLogs, 15000);
+        setInterval(checkFreshness, 1000);
+    </script>
+</body>
+
+</html>

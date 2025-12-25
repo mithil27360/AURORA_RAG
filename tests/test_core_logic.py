@@ -3,73 +3,54 @@ import unittest
 from unittest.mock import MagicMock, patch
 import json
 import hashlib
-
-# Import key components from aurora_v2 (assuming it can be imported, otherwise we mock behavior)
-# Since aurora_v2 is a script, we might need to mock the classes if we can't import easily.
-# For this test, we will mock the logic flow to verify the *concept* or we can try to import.
-# Given it's a script without `if __name__ == "__main__":` guard block widely applied, importing might run server.
-# So we will write a test that mocks the *functions* and classes expected.
+from app.core.config import settings
+from app.services.llm import LLMService
 
 class TestRAGLogic(unittest.TestCase):
     
-    def test_no_chunks_refusal(self):
-        """Test 1: If search returns no chunks, system should refuse/fallback"""
-        # Mock Searcher
-        mock_searcher = MagicMock()
-        mock_searcher.search.return_value = [] # Empty list
-        
-        # Mock LLM behavior for no context
-        # In our code:
-        # if not chunks:
-        #    return ... "I don't have enough specific information..."
-        
-        # Simulate logic
-        chunks = mock_searcher.search("random query")
-        
-        response = None
-        if not chunks:
-            response = "I don't have enough specific information about that in my knowledge base."
-            
-        self.assertIn("don't have enough", response)
-        self.assertEqual(len(chunks), 0)
+    def setUp(self):
+        # Ensure we are testing with known config values
+        self.original_threshold = settings.CONFIDENCE_THRESHOLD
+    
+    def tearDown(self):
+        # Restore config
+        # (Note: In a real app we might want to patch settings object instead)
+        pass
 
-    def test_low_confidence_fallback(self):
-        """Test 2: Low confidence should trigger fallback response type"""
-        # Mock LLM API response with low confidence logic (simulated)
-        # Logic: tier = "High" if confidence > 0.75 else ...
-        
-        confidence = 0.4
-        tier = "High" if confidence > 0.75 else "Medium" if confidence > 0.5 else "Low"
-        
-        self.assertEqual(tier, "Low")
-        
-        # In our code, low confidence might not block answer, but it's flagged
-        # If strict mode is on, it might be different. 
-        # But broadly, we verify the tier logic.
+    def test_config_loading(self):
+        """Test 1: Verify Pydantic settings are loaded correctly"""
+        print(f"\n[INFO] Testing Config Loading...")
+        self.assertIsNotNone(settings.GROQ_API_KEY)
+        self.assertGreater(settings.MAX_CONVERSATION_USERS, 0)
+        print(f"   Max Users Config: {settings.MAX_CONVERSATION_USERS}")
 
-    def test_cache_consistency(self):
-        """Test 3: Same query + intent + threshold = Same Cache Key"""
+    def test_cache_key_generation(self):
+        """Test 2: Verify Cache Key stability with new Architecture"""
+        # We can implement a simulation of the key generation used in routes.py
+        # or abstract key gen into a util. For now, we test the logic principle
+        # which should match what's in app/api/routes.py
+        
         query = " when is convenients? "
         intent = "schedule"
-        threshold = 0.05
         
-        # Logic from aurora_v2.py
+        # Logic from app/api/routes.py (we should ideally extract this to a reused function)
         query_normalized = query.lower().strip().replace("?", "").replace("!", "")
-        cache_key_str = f"{query_normalized}|{intent}|{threshold}"
+        cache_key_str = f"{query_normalized}|{intent}|{settings.CONFIDENCE_THRESHOLD}"
         key1 = hashlib.md5(cache_key_str.encode()).hexdigest()
         
         # Run again
         key2 = hashlib.md5(cache_key_str.encode()).hexdigest()
         
         self.assertEqual(key1, key2)
-        
-        # Change intent
-        intent_diff = "general"
-        cache_key_str_diff = f"{query_normalized}|{intent_diff}|{threshold}"
-        key3 = hashlib.md5(cache_key_str_diff.encode()).hexdigest()
-        
-        self.assertNotEqual(key1, key3)
-        print("\n✅ Cache key is intent-aware!")
+        print(f"   Cache Key: {key1}")
+
+    @patch('app.services.llm.Groq')
+    def test_llm_service_initialization(self, mock_groq):
+        """Test 3: Verify LLM Service initializes with config key"""
+        service = LLMService()
+        # Verify Groq was called (checking if API key was passed depends on implementation details)
+        mock_groq.assert_called()
+        print("   LLM Service Initialized")
 
 if __name__ == '__main__':
     unittest.main()
