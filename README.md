@@ -46,25 +46,4 @@ Open: http://localhost:8000
 | Dashboard | http://localhost:8000/dashboard |
 | Health | http://localhost:8000/health |
 
-## Make It Public (ngrok)
 
-```bash
-# Terminal 1: Start server
-./scripts/start.sh
-
-# Terminal 2: Expose publicly
-ngrok http 8000
-```
-
-Share the ngrok URL with users.
-
-## Files
-
-```
-app/           → Application code
-scripts/       → Start scripts
-tests/         → Test files
-.env           → Secrets (don't commit)
-credentials.json → Google auth (don't commit)
-requirements.txt → Dependencies
-```
