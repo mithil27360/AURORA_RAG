@@ -1,13 +1,3 @@
----
-title: Aurora Fest RAG Chatbot
-emoji: 🎭
-colorFrom: indigo
-colorTo: purple
-sdk: docker
-app_port: 7860
-pinned: false
----
-
 # Aurora Fest RAG Chatbot
 
 ![Architecture Diagram](https://via.placeholder.com/800x200?text=Google+Sheets+%2B+Vector+DB+%2B+Groq+LLM)
