@@ -1,28 +1,70 @@
 # Aurora RAG Chatbot
 
+## Setup
 
-## Quick Start
+### 1. Install Python 3.10+
+```bash
+python --version  # Should be 3.10 or higher
+```
 
+### 2. Create Virtual Environment
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Mac/Linux
+# .venv\Scripts\activate    # Windows
+```
+
+### 3. Install Dependencies
 ```bash
 pip install -r requirements.txt
-./start.sh
+```
+
+### 4. Add Credentials
+
+Create `.env` file:
+```
+GROQ_API_KEY=your_groq_api_key
+GOOGLE_SHEETS_ID=your_sheet_id
+DASHBOARD_USERNAME=your_username
+DASHBOARD_PASSWORD=your_password
+```
+
+Add `credentials.json` (Google service account key)
+
+### 5. Run
+```bash
+./scripts/start.sh
 ```
 
 Open: http://localhost:8000
 
-## Dashboard
+## URLs
 
-Access: `/dashboard`
+| Page | URL |
+|------|-----|
+| Chat | http://localhost:8000 |
+| Dashboard | http://localhost:8000/dashboard |
+| Health | http://localhost:8000/health |
 
-Credentials are in `.env`
+## Make It Public (ngrok)
 
-## Environment Variables
+```bash
+# Terminal 1: Start server
+./scripts/start.sh
 
-Create `.env` file:
+# Terminal 2: Expose publicly
+ngrok http 8000
 ```
-GROQ_API_KEY=
-GOOGLE_SHEETS_ID=
-DASHBOARD_USERNAME=
-DASHBOARD_PASSWORD=
-```
 
+Share the ngrok URL with users.
+
+## Files
+
+```
+app/           → Application code
+scripts/       → Start scripts
+tests/         → Test files
+.env           → Secrets (don't commit)
+credentials.json → Google auth (don't commit)
+requirements.txt → Dependencies
+```
