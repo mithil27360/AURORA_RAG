@@ -17,14 +17,30 @@ class SheetsService:
         ]
         
     def _get_client(self):
-        """Authenticate and get client"""
-        if not os.path.exists(settings.GOOGLE_CREDS_FILE):
-            logger.warning(f"Credentials file not found at {settings.GOOGLE_CREDS_FILE}")
+        """Authenticate using file or env var (for Render deployment)."""
+        creds = None
+        
+        # Option 1: JSON from environment variable (Render)
+        creds_json = os.environ.get("GOOGLE_CREDS_JSON")
+        if creds_json:
+            try:
+                creds_data = json.loads(creds_json)
+                creds = Credentials.from_service_account_info(creds_data, scopes=self.scope)
+                logger.info("Using credentials from GOOGLE_CREDS_JSON env var")
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid GOOGLE_CREDS_JSON: {e}")
+        
+        # Option 2: File path (local/Docker)
+        if not creds and os.path.exists(settings.GOOGLE_CREDS_FILE):
+            creds = Credentials.from_service_account_file(
+                settings.GOOGLE_CREDS_FILE, scopes=self.scope
+            )
+            logger.info(f"Using credentials from file: {settings.GOOGLE_CREDS_FILE}")
+        
+        if not creds:
+            logger.warning("No Google credentials found (file or env var)")
             return None
             
-        creds = Credentials.from_service_account_file(
-            settings.GOOGLE_CREDS_FILE, scopes=self.scope
-        )
         return gspread.authorize(creds)
 
     def fetch_events(self) -> List[Dict]:
