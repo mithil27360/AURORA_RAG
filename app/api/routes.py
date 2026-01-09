@@ -25,6 +25,7 @@ from app.services.abuse import get_abuse_detector
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 logger = logging.getLogger(__name__)
+GREETED_SESSIONS = set()
 
 def get_client_ip(request: Request) -> tuple:
     """Get client IP (returns original and normalized IPv4 if applicable)."""
@@ -238,12 +239,18 @@ async def serve_chat(
     ip_hash = abuse_detector.hash_ip(ip)
     
     # Check abuse detection (score-based, not single-signal)
-    is_allowed, block_reason, abuse_data = abuse_detector.process_request(ip, req.query, str(request.url.path))
-    if not is_allowed:
-        logger.warning(f"Request [{request_id}] blocked by abuse detection: {abuse_data}")
-        # Log temp IP for blocked requests
+    status, block_reason, abuse_data = abuse_detector.process_request(ip, req.query, str(request.url.path))
+    
+    if status == "hard_block":
+        logger.warning(f"Request [{request_id}] BLOCKED (Hard): {abuse_data}")
         await interaction_logger.log_temp_ip(ip, ip_hash, request_id, is_blocked=True)
         raise HTTPException(status_code=403, detail=block_reason)
+        
+    elif status == "soft_block":
+        logger.warning(f"Request [{request_id}] REFUSED (Soft): {abuse_data}")
+        # Log purely for analytics but don't process LLM
+        # We raise 400 so UI shows the warning message
+        raise HTTPException(status_code=400, detail=block_reason)
 
     # Content moderation
     is_valid, reason = security.moderate_content(req.query)
@@ -289,6 +296,27 @@ async def serve_chat(
         intent = "contact"
     elif any(x in query_lower for x in ["rule", "prerequisite", "eligible", "requirement"]):
         intent = "rules"
+
+    # User Identification & Greeting Logic
+    user_id = hashlib.md5(ip.encode()).hexdigest()[:16]
+    
+    basic_greetings = ["hi", "hello", "hey"]
+    is_greeting = req.query.lower().strip().rstrip('!.?') in basic_greetings
+    
+    if is_greeting and user_id in GREETED_SESSIONS:
+        response_time = (time.time() - start) * 1000
+        return ChatResponse(
+            answer="How can I help?",
+            confidence=1.0,
+            tier="High",
+            response_time_ms=response_time,
+            intent="general",
+            timestamp=datetime.now().isoformat(),
+            interaction_id=request_id
+        )
+    
+    # Mark active
+    GREETED_SESSIONS.add(user_id)
 
     # Check cache (exact match first, then semantic)
     cache_key = hashlib.md5(f"{normalized_query}|{intent}|{req.threshold}".encode()).hexdigest()
@@ -346,10 +374,21 @@ async def serve_chat(
     elif intent == "rules":
         filters = {"type": {"$in": ["rules", "general", "about"]}}
 
+    # Fuzzy Augmentation for Typos
+    search_query = req.query
+    try:
+        fuzzy_matches = await vector_store.fuzzy_search_event(req.query)
+        if fuzzy_matches:
+            # Augment query with correct names to boost vector/keyword match
+            search_query = f"{req.query} {' '.join(fuzzy_matches)}"
+            logger.info(f"[{request_id}] Fuzzy match augmented: {search_query}")
+    except Exception as e:
+        logger.warning(f"Fuzzy search failed: {e}")
+
     # Vector retrieval with timeout
     try:
         chunks = await asyncio.wait_for(
-            vector_store.search(req.query, k=settings.TOP_K_RESULTS, filters=filters),
+            vector_store.search(search_query, k=settings.TOP_K_RESULTS, filters=filters),
             timeout=10.0  # 10 second hard timeout for vector search
         )
     except asyncio.TimeoutError:
@@ -387,6 +426,7 @@ async def serve_chat(
     except Exception:
         history = []  # Continue without history
     
+
     # Generate response
     try:
         llm_result = await asyncio.wait_for(

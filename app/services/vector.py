@@ -3,6 +3,8 @@ import logging
 import time
 import asyncio
 import chromadb
+import difflib
+import re
 from chromadb.utils import embedding_functions
 from typing import List, Dict, Optional
 from app.core.config import settings
@@ -98,13 +100,41 @@ class VectorService:
             if result and result["documents"]:
                 return {
                     "text": result["documents"][0],
-                    "score": 1.0,  # Max score for forced retrieval
+                    "score": 1.0, 
                     "id": "master_event_list",
                     "meta": result["metadatas"][0] if result["metadatas"] else {}
                 }
         except Exception as e:
             logger.error(f"Failed to fetch master list: {e}")
         return None
+
+    async def fuzzy_search_event(self, query: str) -> List[str]:
+        """Find event names that match the query fuzzily."""
+        master = await self.get_master_event_list()
+        if not master:
+            return []
+        
+        # Extract names from text: "1. EventName (Type) - "
+        text = master.get("text", "")
+        # Regex to find "1. Name (Type)" -> Capture Name
+        pattern = r"\d+\.\s+(.*?)\s+\("
+        event_names = re.findall(pattern, text)
+        
+        # Check whole query against names
+        matches = difflib.get_close_matches(query, event_names, n=1, cutoff=0.6)
+        if matches:
+            return matches
+
+        # Check individual words in query
+        found = set()
+        for word in query.split():
+            # Skip short words
+            if len(word) < 4: continue
+            m = difflib.get_close_matches(word, event_names, n=1, cutoff=0.6)
+            if m:
+                found.add(m[0])
+        
+        return list(found)
 
     async def update_kb(self, events: List[Dict]):
         """Update Knowledge Base (Blue/Green) - non-blocking wrapper"""
@@ -200,6 +230,11 @@ class VectorService:
                 "id": "about_identity_repo",
                 "text": """ABOUT AURORA CHATBOT: I am the Aurora Fest Assistant, an AI built to help you navigate the ISTE Aurora 2025 college fest. I can help with event schedules, registration, workshops, and more. I am here to assist students with all things Aurora.""",
                 "metadata": {"type": "about", "topic": "identity"}
+            },
+            {
+                "id": "about_chief_guest",
+                "text": """AURORA CHIEF GUEST: The Chief Guest for the Aurora Fest 2025 inauguration ceremony is yet to be officially announced. Please keep an eye on our social media handles and the official website for the big reveal! We usually invite prominent industry leaders or scientists.""",
+                "metadata": {"type": "about", "topic": "guest"}
             }
         ]
         chunks.extend(static_chunks)
@@ -228,39 +263,61 @@ class VectorService:
         if faqs:
             logger.info(f"Created {len(faqs)} FAQ chunks")
         
-        # ===== PASS 1: Collect unique events =====
-        unique_events = {}  # {name: first_row}
-        events_by_type = {}  # {type: [names]}
-        events_by_club = {}  # {club: [names]}
+        # ===== PASS 1: Collect unique events & Min Dates =====
+        event_groups = {} # {name: [rows]}
         
         for event in events:
             name = event.get("event_name", "Unknown")
-            if name not in unique_events:
-                unique_events[name] = event
-                
-                etype = event.get("event_type", "Event")
-                if etype not in events_by_type:
-                    events_by_type[etype] = []
-                events_by_type[etype].append(name)
-                
-                club = event.get("club_name", "")
-                if club:
-                    if club not in events_by_club:
-                        events_by_club[club] = []
-                    events_by_club[club].append(name)
-        
+            if name not in event_groups:
+                event_groups[name] = []
+            event_groups[name].append(event)
+
+        # Sort events by min start_date
+        def get_min_date(name):
+             rows = event_groups[name]
+             dates = [r.get("start_date", "9999-99-99") for r in rows if r.get("start_date")]
+             return min(dates) if dates else "9999-99-99"
+
+        sorted_names = sorted(event_groups.keys(), key=get_min_date)
+
         # ===== MASTER EVENT LIST (Critical for "all events" queries) =====
-        event_names = list(unique_events.keys())
         master_list = "ALL EVENTS AT AURORA FEST 2025:\n"
-        for i, name in enumerate(event_names, 1):
-            ev = unique_events[name]
-            master_list += f"{i}. {name} ({ev.get('event_type', 'Event')}) - by {ev.get('club_name', 'Aurora Team')}\n"
-        
+        for i, name in enumerate(sorted_names, 1):
+            rows = event_groups[name]
+            # Use first row for static details, but calculate date range
+            ev = rows[0]
+            start_date = get_min_date(name)
+            
+            # Find max date
+            all_dates = [r.get("start_date") for r in rows if r.get("start_date")]
+            end_date = max(all_dates) if all_dates else start_date
+            
+            date_str = f"({start_date})"
+            if start_date != end_date:
+                date_str = f"({start_date} to {end_date})"
+
+            master_list += f"{i}. {name} ({ev.get('event_type', 'Event')}) - by {ev.get('club_name', 'Aurora Team')} {date_str}\n"
+
         chunks.append({
             "id": "master_event_list",
             "text": master_list,
-            "metadata": {"type": "event_list", "count": len(event_names)}
+            "metadata": {"type": "event_list", "count": len(sorted_names)}
         })
+
+        # Re-populate helper dicts for downstream logic (keeping existing logic happy)
+        unique_events = {name: event_groups[name][0] for name in sorted_names}
+        events_by_type = {}
+        events_by_club = {}
+        for name in sorted_names:
+            ev = unique_events[name]
+            etype = ev.get("event_type", "Event")
+            if etype not in events_by_type: events_by_type[etype] = []
+            events_by_type[etype].append(name)
+            
+            club = ev.get("club_name", "")
+            if club:
+                if club not in events_by_club: events_by_club[club] = []
+                events_by_club[club].append(name)
         
         # ===== EVENTS BY TYPE =====
         for etype, names in events_by_type.items():
@@ -319,11 +376,23 @@ Certificate: {ev.get('certificate_offered', 'No')}"""
             etype = event.get("event_type", "Event")
             
             # Sanitize dates (Fix common 2055 typo)
-            sdate = str(event.get('start_date', '')).replace('2055', '2025')
+            sdate_str = str(event.get('start_date', '')).replace('2055', '2025')
             
+            # Calculate actual date based on Day number
+            # Default to sdate, but try to offset if day > 1
+            final_date_str = sdate_str
+            try:
+                if sdate_str and day.isdigit() and int(day) > 1:
+                    from datetime import datetime, timedelta
+                    start_dt = datetime.strptime(sdate_str, "%Y-%m-%d")
+                    offset_dt = start_dt + timedelta(days=int(day) - 1)
+                    final_date_str = offset_dt.strftime("%Y-%m-%d")
+            except Exception as e:
+                logger.warning(f"Date parsing failed for {name}: {e}")
+
             # Schedule
             if event.get("start_time"):
-                text = f"SCHEDULE: {name} ({etype}) Day {day} on {sdate} from {event.get('start_time', '')} to {event.get('end_time', '')}."
+                text = f"SCHEDULE: {name} ({etype}) Day {day} on {final_date_str} from {event.get('start_time', '')} to {event.get('end_time', '')}."
                 if event.get("venue"):
                     text += f" Venue: {event.get('venue')}."
                 chunks.append({
