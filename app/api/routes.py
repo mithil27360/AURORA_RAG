@@ -26,10 +26,51 @@ router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 logger = logging.getLogger(__name__)
 
+def get_client_ip(request: Request) -> tuple:
+    """Get client IP (returns original and normalized IPv4 if applicable)."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        logger.info(f"DEBUG: X-Forwarded-For: {forwarded}")
+        original_ip = forwarded.split(",")[0].strip()
+    else:
+        logger.info("DEBUG: No X-Forwarded-For header found")
+        original_ip = request.client.host if request.client else "unknown"
+    
+    # Keep original for logging, but also extract IPv4 if available
+    ipv4 = original_ip
+    if original_ip.startswith("::ffff:"):
+        ipv4 = original_ip[7:]  # Extract IPv4 from mapped address
+    
+    if original_ip in ("::1", "localhost"):
+        ipv4 = "127.0.0.1"
+    
+    return original_ip, ipv4
+
+def normalize_query(query: str) -> str:
+    """FAANG-level query normalization for better cache hits."""
+    import re
+    q = query.lower().strip()
+    # Remove extra whitespace
+    q = re.sub(r'\s+', ' ', q)
+    # Remove punctuation except key chars
+    q = re.sub(r'[^\w\s?]', '', q)
+    # Common typo corrections for event names
+    typo_map = {
+        'astragavanz': 'astravaganza', 'adtagavanza': 'astravaganza',
+        'astravaganz': 'astravaganza', 'astravganza': 'astravaganza',
+        'hackthon': 'hackathon', 'hackathn': 'hackathon',
+        'registeration': 'registration', 'registation': 'registration',
+        'schdule': 'schedule', 'schedul': 'schedule',
+    }
+    for typo, correct in typo_map.items():
+        q = q.replace(typo, correct)
+    return q
+
 # --- Schemas ---
 class ChatRequest(BaseModel):
     query: str
     threshold: Optional[float] = settings.CONFIDENCE_THRESHOLD
+    client_data: Optional[dict] = None  # Cookies, localStorage, screen info
 
 class ChatResponse(BaseModel):
     answer: str
@@ -98,6 +139,77 @@ def parse_user_agent(ua: str) -> dict:
 
 # --- Routes ---
 
+# Helper for IP Geolocation
+async def enrich_client_data(ip: str, client_data: dict) -> dict:
+    """Fetch accurate location from IP and merge with client data."""
+    if not client_data:
+        client_data = {}
+    
+    # Skip localhost/private IPs
+    if ip in ("127.0.0.1", "::1", "unknown") or ip.startswith("192.168.") or ip.startswith("10."):
+        client_data["location"] = {"city": "Local Network", "country": "Local", "isp": "Local"}
+        return client_data
+
+    import httpx
+    
+    # Provider 1: ip-api.com (Fast, HTTP, Limit: 45/min)
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get(f"http://ip-api.com/json/{ip}?fields=status,country,city,isp,lat,lon,timezone,mobile")
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("status") == "success":
+                    client_data["location"] = {
+                        "city": data.get("city"),
+                        "country": data.get("country"),
+                        "isp": data.get("isp"),
+                        "lat": data.get("lat"),
+                        "lon": data.get("lon"),
+                        "timezone": data.get("timezone"),
+                        "mobile": data.get("mobile")
+                    }
+                    return client_data
+    except Exception:
+        pass # Try next provider
+
+    # Provider 2: ipapi.co (Better IPv6 support, HTTPS, Limit: 1000/day)
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(f"https://ipapi.co/{ip}/json/")
+            if resp.status_code == 200:
+                data = resp.json()
+                if "error" not in data:
+                    client_data["location"] = {
+                        "city": data.get("city"),
+                        "country": data.get("country_name"),
+                        "isp": data.get("org"),
+                        "lat": data.get("latitude"),
+                        "lon": data.get("longitude"),
+                        "timezone": data.get("timezone"),
+                        "mobile": None # ipapi.co doesn't explicit mobile field in free tier easily
+                    }
+                    return client_data
+    except Exception as e:
+        logger.warning(f"IP Geolocation failed for {ip}: {e}")
+    
+    # Fallback: Use client-side timezone if available and IP geo failed
+    if "location" not in client_data and client_data.get("timezone"):
+        tz = client_data.get("timezone", "")
+        if "/" in tz:
+            region, city = tz.split("/", 1)
+            client_data["location"] = {
+                "city": city.replace("_", " "),
+                "country": region, # Rough approximation (e.g. Asia, Europe) - better than nothing
+                "isp": "Unknown (derived from timezone)",
+                "timezone": tz
+            }
+            # Specific mappings for common timezones
+            if "Kolkata" in city: client_data["location"]["country"] = "India"
+            elif "New_York" in city or "Los_Angeles" in city: client_data["location"]["country"] = "USA"
+            elif "London" in city: client_data["location"]["country"] = "UK"
+    
+    return client_data
+
 @router.post("/chat", response_model=ChatResponse)
 @limiter.limit(settings.RATE_LIMIT_CHAT)
 async def serve_chat(
@@ -110,9 +222,12 @@ async def serve_chat(
     interaction_logger: InteractionLogger = Depends(get_interaction_logger)
 ):
     request_id = str(uuid.uuid4())
-    ip = get_remote_address(request)
+    original_ip, ip = get_client_ip(request)  # original_ip for logging, ip for IPv4
     logger.info(f"Received chat request [{request_id}] from {ip}")
     start = time.time()
+    
+    # FAANG-level query normalization for better cache hits
+    normalized_query = normalize_query(req.query)
     
     # Parse device info
     user_agent = request.headers.get("user-agent", "")
@@ -166,7 +281,7 @@ async def serve_chat(
     # Intent classification
     query_lower = req.query.lower()
     intent = "general"
-    if any(x in query_lower for x in ["schedule", "when", "time", "date", "calendar"]):
+    if any(x in query_lower for x in ["schedule", "when", "time", "date", "calendar", "event", "events"]):
         intent = "schedule"
     elif any(x in query_lower for x in ["where", "venue", "location", "place", "room"]):
         intent = "venue"
@@ -175,29 +290,42 @@ async def serve_chat(
     elif any(x in query_lower for x in ["rule", "prerequisite", "eligible", "requirement"]):
         intent = "rules"
 
-    # Check cache
-    cache_key = hashlib.md5(f"{req.query.lower().strip()}|{intent}|{req.threshold}".encode()).hexdigest()
+    # Check cache (exact match first, then semantic)
+    cache_key = hashlib.md5(f"{normalized_query}|{intent}|{req.threshold}".encode()).hexdigest()
     cached_response = await redis.get_cache(cache_key)
+    
+    # Try semantic cache if exact match fails
+    if not cached_response:
+        cached_response = await redis.get_semantic_cache(req.query)
     
     if cached_response:
         logger.info(f"Cache HIT for [{request_id}]")
         response_time = (time.time() - start) * 1000
         user_id = hashlib.md5(ip.encode()).hexdigest()[:16]
-        # Log cached interaction
-        await interaction_logger.log_interaction(
-             interaction_id=request_id,
-             query=req.query,
-             answer=cached_response["answer"],
-             intent=intent,
-             confidence=cached_response["confidence"],
-             response_time_ms=response_time,
-             cached=True,
-             user_id=user_id,
-             ip_hash=ip_hash,
-             device_type=device_info["device_type"],
-             browser=device_info["browser"],
-             os=device_info["os"]
-        )
+        # Background task for logging with enrichment
+        async def log_cached_bg():
+            try:
+                enriched = await enrich_client_data(ip, req.client_data)
+                await interaction_logger.log_interaction(
+                     interaction_id=request_id,
+                     query=req.query,
+                     answer=cached_response["answer"],
+                     intent=intent,
+                     confidence=cached_response["confidence"],
+                     response_time_ms=response_time,
+                     cached=True,
+                     user_id=user_id,
+                     ip_hash=ip_hash,
+                     device_type=device_info["device_type"],
+                     browser=device_info["browser"],
+                     os=device_info["os"],
+                     client_data=enriched
+                )
+                await interaction_logger.log_temp_ip(ip, ip_hash, request_id)
+            except Exception as e:
+                logger.error(f"Background cached log failed: {e}")
+                
+        asyncio.create_task(log_cached_bg())
         return ChatResponse(
             answer=cached_response["answer"],
             confidence=cached_response["confidence"],
@@ -211,12 +339,12 @@ async def serve_chat(
     # Build retrieval filters
     filters = None
     if intent == "schedule":
-        filters = {"type": {"$in": ["schedule", "general"]}}
+        filters = {"type": {"$in": ["schedule", "general", "event_list", "about"]}}
     elif intent == "venue":
         # Venue info is stored in schedule chunks, so include both
-        filters = {"type": {"$in": ["schedule", "venue", "general"]}}
+        filters = {"type": {"$in": ["schedule", "venue", "general", "event_list"]}}
     elif intent == "rules":
-        filters = {"type": {"$in": ["rules", "general"]}}
+        filters = {"type": {"$in": ["rules", "general", "about"]}}
 
     # Vector retrieval with timeout
     try:
@@ -283,35 +411,44 @@ async def serve_chat(
     
     response_time = (time.time() - start) * 1000
     
-    # Background tasks (non-blocking)
-    try:
-        asyncio.create_task(redis.add_history(user_id, req.query, llm_result["answer"]))
-        asyncio.create_task(redis.set_cache(cache_key, {
-            "answer": llm_result["answer"],
-            "confidence": llm_result["confidence"],
-            "intent": intent
-        }))
-        
-        asyncio.create_task(interaction_logger.log_interaction(
-             interaction_id=request_id,
-             query=req.query,
-             answer=llm_result["answer"],
-             intent=intent,
-             retrieved_docs=chunks,
-             confidence=llm_result["confidence"],
-             used_docs=llm_result["used_docs"],
-             response_time_ms=response_time,
-             cached=False,
-             user_id=user_id,
-             ip_hash=ip_hash,
-             device_type=device_info["device_type"],
-             browser=device_info["browser"],
-             os=device_info["os"]
-        ))
-    except Exception as e:
-        logger.warning(f"[{request_id}] Background task failed: {e}")
-        # Continue - user still gets their response
 
+    # Background tasks (non-blocking) with enrichment
+    async def log_bg_task():
+        try:
+             enriched = await enrich_client_data(ip, req.client_data)
+             
+             # Log history & cache
+             await redis.add_history(user_id, req.query, llm_result["answer"])
+             await redis.set_cache(cache_key, {
+                "answer": llm_result["answer"],
+                "confidence": llm_result["confidence"],
+                "intent": intent
+             }, query=req.query)
+
+             await interaction_logger.log_interaction(
+                 interaction_id=request_id,
+                 query=req.query,
+                 answer=llm_result["answer"],
+                 intent=intent,
+                 retrieved_docs=chunks,
+                 confidence=llm_result["confidence"],
+                 used_docs=llm_result["used_docs"],
+                 response_time_ms=response_time,
+                 cached=False,
+                 user_id=user_id,
+                 ip_hash=ip_hash,
+                 device_type=device_info["device_type"],
+                 browser=device_info["browser"],
+                 os=device_info["os"],
+                 client_data=enriched
+            )
+            # Log real IP
+             await interaction_logger.log_temp_ip(ip, ip_hash, request_id)
+        except Exception as e:
+            logger.error(f"Background log failed: {e}")
+
+    asyncio.create_task(log_bg_task())
+    
     tier = "High" if llm_result["confidence"] > 0.75 else "Medium" if llm_result["confidence"] > 0.5 else "Low"
 
     return ChatResponse(

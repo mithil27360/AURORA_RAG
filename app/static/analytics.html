@@ -584,29 +584,79 @@
                         <button class="btn" onclick="exportCSV()">Export CSV</button>
                     </div>
                 </div>
+                <div style="display: flex; gap: 12px; padding: 12px 0; flex-wrap: wrap; align-items: center;">
+                    <input type="text" id="logSearch" placeholder="Search query or IP..." oninput="filterLogs()"
+                        style="padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 12px; width: 200px;">
+                    <select id="logIntentFilter" onchange="filterLogs()"
+                        style="padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 12px; background: white;">
+                        <option value="">All Intents</option>
+                        <option value="schedule">Schedule</option>
+                        <option value="venue">Venue</option>
+                        <option value="registration">Registration</option>
+                        <option value="general">General</option>
+                        <option value="blocked">Blocked</option>
+                    </select>
+                    <select id="logCachedFilter" onchange="filterLogs()"
+                        style="padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 12px; background: white;">
+                        <option value="">All</option>
+                        <option value="yes">Cached Only</option>
+                        <option value="no">Not Cached</option>
+                    </select>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <label style="font-size: 11px; color: #64748b;">From:</label>
+                        <input type="date" id="logDateFrom" onchange="filterLogs()"
+                            style="padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 11px;">
+                        <input type="time" id="logTimeFrom" onchange="filterLogs()"
+                            style="padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 11px;">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <label style="font-size: 11px; color: #64748b;">To:</label>
+                        <input type="date" id="logDateTo" onchange="filterLogs()"
+                            style="padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 11px;">
+                        <input type="time" id="logTimeTo" onchange="filterLogs()"
+                            style="padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 11px;">
+                    </div>
+                    <span id="filterCount" style="font-size: 11px; color: #64748b;"></span>
+                </div>
                 <div style="overflow-x: auto; max-height: 400px;">
                     <table>
                         <thead>
                             <tr>
                                 <th>ID</th>
+                                <th>User ID</th>
                                 <th>Time</th>
                                 <th>Query</th>
                                 <th>Answer</th>
                                 <th>Intent</th>
                                 <th>Conf</th>
-                                <th>Device</th>
-                                <th>Feedback</th>
                                 <th>Latency</th>
+                                <th>Cached</th>
+                                <th>Feedback</th>
+                                <th>Details</th>
                             </tr>
                         </thead>
                         <tbody id="logsTable">
                             <tr>
-                                <td colspan="9" class="empty-state">Loading interaction logs...</td>
+                                <td colspan="11" class="empty-state">Loading interaction logs...</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Details Modal -->
+    <div id="detailsModal"
+        style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+        <div
+            style="background:white; border-radius:12px; width:600px; max-height:80vh; overflow-y:auto; padding:24px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h3 style="margin:0; font-size:18px;">Interaction Details</h3>
+                <span onclick="document.getElementById('detailsModal').style.display='none'"
+                    style="cursor:pointer; font-size:24px;">&times;</span>
+            </div>
+            <div id="modalContent" style="font-size:13px; line-height:1.6; color:#334155;"></div>
         </div>
     </div>
 
@@ -872,38 +922,158 @@
             }).join('');
         }
 
+        // Filter logs by search text, intent, cached status, and date range
+        function filterLogs() {
+            const search = document.getElementById('logSearch').value.toLowerCase();
+            const intent = document.getElementById('logIntentFilter').value;
+            const cached = document.getElementById('logCachedFilter').value;
+            const dateFrom = document.getElementById('logDateFrom').value;
+            const dateTo = document.getElementById('logDateTo').value;
+            const timeFrom = document.getElementById('logTimeFrom').value || '00:00';
+            const timeTo = document.getElementById('logTimeTo').value || '23:59';
+
+            const filtered = logsData.filter(log => {
+                // Search filter (query or IP)
+                const matchSearch = !search ||
+                    (log.query_text || '').toLowerCase().includes(search) ||
+                    (log.real_ip || '').toLowerCase().includes(search) ||
+                    (log.user_id || '').toLowerCase().includes(search);
+
+                // Intent filter
+                const matchIntent = !intent || (log.detected_intent || '').toLowerCase() === intent;
+
+                // Cached filter
+                const matchCached = !cached ||
+                    (cached === 'yes' && log.cached) ||
+                    (cached === 'no' && !log.cached);
+
+                // Date + Time filter
+                let matchDateTime = true;
+                const logTimestamp = new Date(log.timestamp);
+
+                // Only apply date filter if at least one date is set
+                if (dateFrom) {
+                    const fromDateTime = new Date(dateFrom + 'T' + timeFrom + ':00');
+                    if (logTimestamp < fromDateTime) matchDateTime = false;
+                }
+
+                if (dateTo) {
+                    const toDateTime = new Date(dateTo + 'T' + timeTo + ':59');
+                    if (logTimestamp > toDateTime) matchDateTime = false;
+                }
+
+                return matchSearch && matchIntent && matchCached && matchDateTime;
+            });
+
+            const hasFilters = search || intent || cached || dateFrom || dateTo;
+            document.getElementById('filterCount').textContent =
+                hasFilters ? `Showing ${filtered.length} of ${logsData.length}` : '';
+
+            updateLogsTable(filtered);
+        }
+
+        function showDetails(logId) {
+            const log = logsData.find(l => l.interaction_id === logId);
+            if (!log) return;
+
+            let clientData = {};
+            try {
+                clientData = typeof log.client_data === 'string' ? JSON.parse(log.client_data) : (log.client_data || {});
+            } catch (e) { console.error("JSON parse error", e); }
+
+            const loc = clientData.location || {};
+            const uaData = clientData.userAgentData || {};
+
+            const html = `
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+                    <div>
+                        <h4 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:5px;">📍 Location (IP)</h4>
+                        <p><strong>IP:</strong> ${log.real_ip || log.ip_hash || 'Unknown'}</p>
+                        <p><strong>City:</strong> ${loc.city || 'Unknown'}</p>
+                        <p><strong>Country:</strong> ${loc.country || 'Unknown'}</p>
+                        <p><strong>Timezone:</strong> ${loc.timezone || clientData.timezone || 'Unknown'}</p>
+                        <p><strong>ISP:</strong> ${loc.isp || 'Unknown'}</p>
+                    </div>
+                    <div>
+                        <h4 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:5px;">💻 Device & OS</h4>
+                        <p><strong>Platform:</strong> ${uaData.platform || clientData.platform || log.os || 'Unknown'}</p>
+                        <p><strong>OS:</strong> ${log.os || 'Unknown'}</p>
+                        <p><strong>Browser:</strong> ${log.browser || 'Unknown'}</p>
+                        <p><strong>Mobile:</strong> ${loc.mobile ? 'Yes' : 'No'}</p>
+                        <p><strong>Screen:</strong> ${clientData.screen_width || '?'}x${clientData.screen_height || '?'}</p>
+                    </div>
+                    <div>
+                        <h4 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:5px;">📊 Session Stats</h4>
+                        <p><strong>Cookies:</strong> ${clientData.cookies_count || 0} (Enabled: ${clientData.cookies_enabled})</p>
+                        <p><strong>Local Storage:</strong> ${clientData.localStorage_count || 0} items</p>
+                        <p><strong>Referrer:</strong> <a href="${clientData.referrer}" target="_blank" style="color:#2563eb;">${(clientData.referrer || 'direct').substring(0, 30)}</a></p>
+                        <p><strong>Language:</strong> ${clientData.language || 'Unknown'}</p>
+                    </div>
+                     <div>
+                        <h4 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:5px;">💬 Interaction</h4>
+                        <p><strong>ID:</strong> <span style="font-family:monospace; font-size:10px;">${log.interaction_id}</span></p>
+                        <p><strong>Time:</strong> <span style="font-size:11px;">${new Date(log.timestamp).toLocaleString()}</span></p>
+                        <p><strong>Latency:</strong> ${Math.round(log.response_time_ms)}ms</p>
+                        <p><strong>Cached:</strong> ${log.cached ? 'Yes' : 'No'}</p>
+                    </div>
+                </div>
+                <div style="margin-top:20px;">
+                    <h4 style="border-bottom:1px solid #eee; padding-bottom:5px;">Query</h4>
+                    <p style="background:#f8fafc; padding:10px; border-radius:6px; font-size:12px;">${escapeHtml(log.query_text)}</p>
+                    <h4 style="border-bottom:1px solid #eee; padding-bottom:5px;">Response</h4>
+                    <p style="background:#f8fafc; padding:10px; border-radius:6px; font-size:12px;">${escapeHtml(log.answer)}</p>
+                </div>
+            `;
+            document.getElementById('modalContent').innerHTML = html;
+            document.getElementById('detailsModal').style.display = 'flex';
+        }
+
         function updateLogsTable(logs) {
             const tbody = document.getElementById('logsTable');
 
             if (logs.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No interactions logged yet</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="11" class="empty-state">No interactions logged yet</td></tr>';
                 return;
             }
 
-            tbody.innerHTML = logs.slice(0, 100).map((log, idx) => {
+            tbody.innerHTML = logs.map((log, idx) => {
                 const time = new Date(log.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
                 const conf = Math.round((log.confidence_score || 0) * 100);
                 const isBlocked = log.detected_intent === 'blocked';
-                const device = log.device_type || '—';
-                const browser = log.browser || '';
                 const feedbackIcon = log.feedback === 'helpful' ? '👍' : (log.feedback === 'not_helpful' ? '👎' : '—');
+
+                const query = escapeHtml(log.query_text || '');
+                const queryPreview = query.substring(0, 30) + (query.length > 30 ? '...' : '');
+                const queryId = 'query-' + idx;
+
                 const answer = escapeHtml(log.answer || '');
                 const answerPreview = answer.substring(0, 40) + (answer.length > 40 ? '...' : '');
                 const answerId = 'answer-' + idx;
+
                 return `
                     <tr>
-                        <td class="mono text-muted">${(log.interaction_id || '').substring(0, 8)}</td>
-                        <td class="text-muted">${time}</td>
-                        <td class="truncate">${escapeHtml(log.query_text || '')}</td>
+                        <td class="mono text-muted" style="font-size: 10px;">${(log.interaction_id || '').substring(0, 8)}</td>
+                        <td class="mono text-muted" style="font-size: 10px;">${(log.user_id || '—').substring(0, 8)}</td>
+                        <td class="text-muted" style="font-size: 11px;">${time}</td>
+                        <td style="max-width: 150px; cursor: pointer;" onclick="toggleAnswer('${queryId}')">
+                            <span id="${queryId}-short" class="truncate" style="display: block; color: #64748b; font-size: 11px;">${queryPreview}</span>
+                            <span id="${queryId}-full" style="display: none; white-space: pre-wrap; font-size: 11px; color: #374151; max-width: 250px;">${query}</span>
+                        </td>
                         <td style="max-width: 200px; cursor: pointer;" onclick="toggleAnswer('${answerId}')">
                             <span id="${answerId}-short" class="truncate" style="display: block; color: #64748b; font-size: 11px;">${answerPreview}</span>
                             <span id="${answerId}-full" style="display: none; white-space: pre-wrap; font-size: 11px; color: #374151; max-width: 300px;">${answer}</span>
                         </td>
                         <td>${isBlocked ? '<span class="badge badge-error">blocked</span>' : '<span class="badge">' + (log.detected_intent || '') + '</span>'}</td>
                         <td class="${conf < 50 ? 'text-error' : ''}">${conf}%</td>
-                        <td class="text-muted" style="font-size: 11px;">${device}${browser ? ' / ' + browser : ''}</td>
-                        <td>${feedbackIcon}</td>
                         <td class="text-muted">${Math.round(log.response_time_ms || 0)}ms</td>
+                        <td>${log.cached ? '<span class="badge badge-success">Yes</span>' : '<span class="badge">No</span>'}</td>
+                        <td>${feedbackIcon}</td>
+                        <td>
+                            <button onclick="showDetails('${log.interaction_id}')"
+                                    style="padding:4px 8px; border:1px solid #e2e8f0; background:white; border-radius:4px; font-size:11px; cursor:pointer;">
+                                View
+                            </button>
+                        </td>
                     </tr>
                 `;
             }).join('');
@@ -975,23 +1145,57 @@
 
         function exportCSV() {
             if (!logsData.length) return alert('No data to export');
+
+            const headers = [
+                'ID', 'Timestamp', 'Query', 'Response', 'Intent', 'Confidence', 'Latency_ms',
+                'Cached', 'User_ID', 'IP_Address', 'City', 'Country', 'Timezone', 'ISP',
+                'Device_Type', 'OS', 'Browser', 'Platform', 'Screen_Size',
+                'Cookies_Count', 'LocalStorage_Count', 'Referrer', 'Feedback'
+            ];
+
             const csv = [
-                ['ID', 'Timestamp', 'Query', 'Response', 'Intent', 'Confidence', 'Latency_ms'].join(','),
-                ...logsData.map(r => [
-                    r.interaction_id,
-                    r.timestamp,
-                    `"${(r.query_text || '').replace(/"/g, '""')}"`,
-                    `"${(r.answer || '').replace(/"/g, '""')}"`,
-                    r.detected_intent,
-                    r.confidence_score,
-                    r.response_time_ms
-                ].join(','))
+                headers.join(','),
+                ...logsData.map(r => {
+                    let clientData = {};
+                    try {
+                        clientData = typeof r.client_data === 'string' ? JSON.parse(r.client_data) : (r.client_data || {});
+                    } catch (e) { }
+
+                    const loc = clientData.location || {};
+                    const ua = clientData.userAgentData || {};
+
+                    return [
+                        r.interaction_id,
+                        r.timestamp,
+                        `"${(r.query_text || '').replace(/"/g, '""')}"`,
+                        `"${(r.answer || '').replace(/"/g, '""')}"`,
+                        r.detected_intent,
+                        r.confidence_score,
+                        r.response_time_ms,
+                        r.cached ? 'Yes' : 'No',
+                        r.user_id,
+                        r.real_ip || r.ip_hash,
+                        `"${(loc.city || '').replace(/"/g, '""')}"`,
+                        `"${(loc.country || '').replace(/"/g, '""')}"`,
+                        `"${(loc.timezone || clientData.timezone || '').replace(/"/g, '""')}"`,
+                        `"${(loc.isp || '').replace(/"/g, '""')}"`,
+                        r.device_type,
+                        r.os,
+                        `"${(r.browser || '').replace(/"/g, '""')}"`,
+                        ua.platform || clientData.platform || '',
+                        `${clientData.screen_width || '?'}x${clientData.screen_height || '?'}`,
+                        clientData.cookies_count || 0,
+                        clientData.localStorage_count || 0,
+                        `"${(clientData.referrer || '').replace(/"/g, '""')}"`,
+                        r.feedback || ''
+                    ].join(',');
+                })
             ].join('\n');
 
             const blob = new Blob([csv], { type: 'text/csv' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = `aurora_logs_${new Date().toISOString().split('T')[0]}.csv`;
+            a.download = `aurora_full_logs_${new Date().toISOString().split('T')[0]}.csv`;
             a.click();
         }
 

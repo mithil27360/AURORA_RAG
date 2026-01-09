@@ -85,6 +85,27 @@ class VectorService:
                     
         return sorted(processed, key=lambda x: x["score"], reverse=True)
 
+    async def get_master_event_list(self) -> Dict:
+        """Retrieve the master event list chunk directly."""
+        if not self.collection:
+            return None
+            
+        try:
+            result = await asyncio.to_thread(
+                self.collection.get,
+                ids=["master_event_list"]
+            )
+            if result and result["documents"]:
+                return {
+                    "text": result["documents"][0],
+                    "score": 1.0,  # Max score for forced retrieval
+                    "id": "master_event_list",
+                    "meta": result["metadatas"][0] if result["metadatas"] else {}
+                }
+        except Exception as e:
+            logger.error(f"Failed to fetch master list: {e}")
+        return None
+
     async def update_kb(self, events: List[Dict]):
         """Update Knowledge Base (Blue/Green) - non-blocking wrapper"""
         await asyncio.to_thread(self._sync_update, events)
@@ -174,6 +195,11 @@ class VectorService:
                 "id": "about_registration",
                 "text": """AURORA REGISTRATION: To register for Aurora Fest events, visit the official AURORA website. Registration is required for most workshops and hackathons. Each event may have different registration deadlines, so check the specific event details. Certificates are provided for most workshops upon completion.""",
                 "metadata": {"type": "about", "topic": "registration"}
+            },
+            {
+                "id": "about_identity_repo",
+                "text": """ABOUT AURORA CHATBOT: I am the Aurora Fest Assistant, an AI built to help you navigate the ISTE Aurora 2025 college fest. I can help with event schedules, registration, workshops, and more. I am here to assist students with all things Aurora.""",
+                "metadata": {"type": "about", "topic": "identity"}
             }
         ]
         chunks.extend(static_chunks)
@@ -259,10 +285,14 @@ class VectorService:
         for name, ev in unique_events.items():
             club = ev.get('club_name', '')
             
+            # Sanitize dates (Fix common 2055 typo)
+            sdate = str(ev.get('start_date', '')).replace('2055', '2025')
+            edate = str(ev.get('end_date', '')).replace('2055', '2025')
+            
             overview = f"""EVENT: {name}
 Type: {ev.get('event_type', 'Event')}
 Organized by: {club}
-Dates: {ev.get('start_date', '')} to {ev.get('end_date', '')}
+Dates: {sdate} to {edate}
 Registration: {ev.get('registration_required', 'No')}
 Certificate: {ev.get('certificate_offered', 'No')}"""
             
@@ -286,10 +316,14 @@ Certificate: {ev.get('certificate_offered', 'No')}"""
         for event in events:
             name = event.get("event_name", "Unknown")
             day = event.get("day_num", "1")
+            etype = event.get("event_type", "Event")
+            
+            # Sanitize dates (Fix common 2055 typo)
+            sdate = str(event.get('start_date', '')).replace('2055', '2025')
             
             # Schedule
             if event.get("start_time"):
-                text = f"SCHEDULE: {name} Day {day} on {event.get('start_date', '')} from {event.get('start_time', '')} to {event.get('end_time', '')}."
+                text = f"SCHEDULE: {name} ({etype}) Day {day} on {sdate} from {event.get('start_time', '')} to {event.get('end_time', '')}."
                 if event.get("venue"):
                     text += f" Venue: {event.get('venue')}."
                 chunks.append({

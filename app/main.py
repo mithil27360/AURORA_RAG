@@ -6,6 +6,7 @@ import secrets
 
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -97,6 +98,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# GZip compression for faster responses (FAANG-level optimization)
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 app.include_router(api_router)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")

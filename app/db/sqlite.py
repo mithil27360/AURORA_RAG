@@ -84,9 +84,16 @@ class InteractionLogger:
                     os TEXT,
                     ip_hash TEXT,
                     feedback TEXT,
+                    client_data TEXT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+            
+            # Migration: Add client_data column if not exists
+            try:
+                c.execute("ALTER TABLE interactions ADD COLUMN client_data TEXT")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
             
             # Temporary IP storage (for abuse detection, auto-cleaned after 48h)
             c.execute('''
@@ -136,8 +143,8 @@ class InteractionLogger:
                 (interaction_id, timestamp, user_id, query_text, detected_intent,
                  retrieved_doc_ids, retrieval_scores, answer, confidence_score,
                  response_type, used_doc_ids, llm_model, response_time_ms, cached,
-                 device_type, browser, os, ip_hash)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 device_type, browser, os, ip_hash, client_data)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 interaction_id,
                 datetime.now().isoformat(),
@@ -156,7 +163,8 @@ class InteractionLogger:
                 kwargs.get("device_type"),
                 kwargs.get("browser"),
                 kwargs.get("os"),
-                kwargs.get("ip_hash")
+                kwargs.get("ip_hash"),
+                json.dumps(kwargs.get("client_data")) if kwargs.get("client_data") else None
             ))
             conn.commit()
             conn.close()
@@ -295,7 +303,14 @@ class InteractionLogger:
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
             c = conn.cursor()
-            c.execute('SELECT * FROM interactions ORDER BY created_at DESC LIMIT ?', (limit,))
+            # LEFT JOIN with temp_ip_log to get real IP (available for 24hrs)
+            c.execute('''
+                SELECT i.*, t.ip_address as real_ip
+                FROM interactions i
+                LEFT JOIN temp_ip_log t ON i.interaction_id = t.interaction_id
+                ORDER BY i.created_at DESC 
+                LIMIT ?
+            ''', (limit,))
             rows = [dict(r) for r in c.fetchall()]
             conn.close()
             return rows

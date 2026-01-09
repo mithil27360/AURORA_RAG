@@ -343,6 +343,37 @@
                 </svg>
             </button>
         </div>
+        <div style="text-align: center; padding: 2px 0; font-size: 9px;">
+            <a href="#" onclick="showTerms(); return false;"
+                style="color: rgba(148, 163, 184, 0.3); text-decoration: none;">Terms</a>
+        </div>
+    </div>
+
+    <!-- Terms Modal -->
+    <div id="termsModal"
+        style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+        <div
+            style="background:white; border-radius:16px; max-width:400px; margin:20px; padding:24px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+            <h3 style="font-size:16px; margin-bottom:16px; color:#0f172a;">Terms & Conditions</h3>
+            <div style="font-size:13px; color:#374151; line-height:1.6;">
+                <p style="margin-bottom:12px;"><strong>Data Collection</strong></p>
+                <ul style="padding-left:20px; margin-bottom:16px;">
+                    <li>IP addresses logged for security (deleted after 24hrs)</li>
+                    <li>Chat messages logged to improve service</li>
+                    <li>Cookies & local storage for session preferences</li>
+                    <li>Device/browser info for analytics</li>
+                </ul>
+                <p style="margin-bottom:12px;"><strong>Usage</strong></p>
+                <ul style="padding-left:20px;">
+                    <li>Aurora Fest event information only</li>
+                    <li>Abuse may result in blocking</li>
+                    <li>No personal data shared with third parties</li>
+                </ul>
+            </div>
+            <button onclick="hideTerms()"
+                style="margin-top:20px; width:100%; padding:12px; background:#0f172a; color:white; border:none; border-radius:8px; font-size:14px; cursor:pointer;">Got
+                it</button>
+        </div>
     </div>
 
     <script>
@@ -384,6 +415,39 @@
             return div.innerHTML;
         }
 
+        // Collect client-side technical data for analytics
+        function getClientData() {
+            try {
+                // Attempt to get robust client hints if available
+                let uaData = {};
+                if (navigator.userAgentData) {
+                    uaData = {
+                        brands: navigator.userAgentData.brands,
+                        mobile: navigator.userAgentData.mobile,
+                        platform: navigator.userAgentData.platform
+                    };
+                }
+
+                return {
+                    cookies_count: document.cookie ? document.cookie.split(';').length : 0,
+                    cookies_enabled: navigator.cookieEnabled,
+                    localStorage_count: localStorage ? localStorage.length : 0,
+                    sessionStorage_count: sessionStorage ? sessionStorage.length : 0,
+                    screen_width: screen.width,
+                    screen_height: screen.height,
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    language: navigator.language,
+                    platform: navigator.platform,
+                    userAgentData: uaData, // Modern High Entropy Data
+                    userAgent: navigator.userAgent, // Legacy fallback
+                    online: navigator.onLine,
+                    referrer: document.referrer || 'direct'
+                };
+            } catch (e) {
+                return {};
+            }
+        }
+
         async function send() {
             const query = q.value.trim();
             if (!query) return;
@@ -401,11 +465,12 @@
             await new Promise(resolve => setTimeout(resolve, minDelay));
 
             try {
-                // 3. Fetch from Backend
+                // 3. Fetch from Backend with client data
+                const clientData = getClientData();
                 const response = await fetch(`${API_URL}/chat`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ query: query })
+                    body: JSON.stringify({ query: query, client_data: clientData })
                 });
 
                 // Remove typing indicator
@@ -544,6 +609,14 @@
 
         // Auto focus on desktop
         if (window.innerWidth > 600) q.focus();
+
+        // Terms modal functions
+        function showTerms() {
+            document.getElementById('termsModal').style.display = 'flex';
+        }
+        function hideTerms() {
+            document.getElementById('termsModal').style.display = 'none';
+        }
 
         // Log system info
         console.log('🚀 Aurora Fest Assistant');
