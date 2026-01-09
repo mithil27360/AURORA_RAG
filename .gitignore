@@ -63,3 +63,8 @@ htmlcov/
 # Temporary exports
 *.csv
 export_*
+
+# SQLite / local DB files
+*.db
+*.db-shm
+*.db-wal
