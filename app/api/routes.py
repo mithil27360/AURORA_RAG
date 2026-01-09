@@ -358,6 +358,15 @@ async def serve_chat(
     except Exception as e:
         logger.error(f"[{request_id}] Vector search failed: {e}")
         chunks = []
+        
+    # FORCE INCLUDE master list for "event list" queries
+    if intent == "schedule" and ("event" in normalized_query or "events" in normalized_query):
+        master_chunk = await vector_store.get_master_event_list()
+        if master_chunk:
+            # Avoid duplicate if it was already retrieved
+            if not any(c["id"] == master_chunk["id"] for c in chunks):
+                chunks.insert(0, master_chunk) # Prioritize it
+                logger.info(f"[{request_id}] Force included master_event_list")
     
     if not chunks:
         response_time = (time.time() - start) * 1000
