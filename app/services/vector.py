@@ -120,15 +120,24 @@ class VectorService:
         pattern = r"\d+\.\s+(.*?)\s+\("
         event_names = re.findall(pattern, text)
         
-        # Check whole query against names
+        # 1. Normalize query for substring check
+        query_alnum = re.sub(r'[^a-z0-9]', '', query.lower())
+        
+        found = set()
+        
+        for name in event_names:
+            # Normalize name: "Intro to UI/UX" -> "introtouiux"
+            name_alnum = re.sub(r'[^a-z0-9]', '', name.lower())
+            if len(query_alnum) > 3 and query_alnum in name_alnum:
+                found.add(name)
+
+        # 2. Existing Difflib (Whole Query)
         matches = difflib.get_close_matches(query, event_names, n=1, cutoff=0.6)
         if matches:
-            return matches
+            found.add(matches[0])
 
-        # Check individual words in query
-        found = set()
+        # 3. Word-based Difflib
         for word in query.split():
-            # Skip short words
             if len(word) < 4: continue
             m = difflib.get_close_matches(word, event_names, n=1, cutoff=0.6)
             if m:
@@ -267,7 +276,7 @@ class VectorService:
         event_groups = {} # {name: [rows]}
         
         for event in events:
-            name = event.get("event_name", "Unknown")
+            name = event.get("event_name", "Unknown").strip()
             if name not in event_groups:
                 event_groups[name] = []
             event_groups[name].append(event)
@@ -371,7 +380,7 @@ Certificate: {ev.get('certificate_offered', 'No')}"""
         added_contacts = set()  # Track to avoid duplicates
         
         for event in events:
-            name = event.get("event_name", "Unknown")
+            name = event.get("event_name", "Unknown").strip()
             day = event.get("day_num", "1")
             etype = event.get("event_type", "Event")
             

@@ -14,13 +14,13 @@ class Settings(BaseSettings):
 
     # Paths
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
-    CHROMA_PATH: Path = BASE_DIR / "chroma_data"
-    DB_PATH: Path = BASE_DIR / "rag_interactions.db"
+    CHROMA_PATH: Path = BASE_DIR / "data" / "chroma_data"
+    DB_PATH: Path = BASE_DIR / "data" / "rag_interactions.db"
     
     # Credentials
     GROQ_API_KEY: str
     GOOGLE_SHEETS_ID: str
-    GOOGLE_CREDS_FILE: str = "credentials.json"
+    GOOGLE_CREDS_FILE: str = "config/credentials.json"
     
     # Security
     DASHBOARD_USERNAME: str = "admin"

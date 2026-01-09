@@ -62,6 +62,7 @@ def normalize_query(query: str) -> str:
         'hackthon': 'hackathon', 'hackathn': 'hackathon',
         'registeration': 'registration', 'registation': 'registration',
         'schdule': 'schedule', 'schedul': 'schedule',
+        'uiux': 'intro to ui/ux', 'ui/ux': 'intro to ui/ux',
     }
     for typo, correct in typo_map.items():
         q = q.replace(typo, correct)
@@ -379,9 +380,16 @@ async def serve_chat(
     try:
         fuzzy_matches = await vector_store.fuzzy_search_event(req.query)
         if fuzzy_matches:
-            # Augment query with correct names to boost vector/keyword match
-            search_query = f"{req.query} {' '.join(fuzzy_matches)}"
-            logger.info(f"[{request_id}] Fuzzy match augmented: {search_query}")
+            # Found a specific event name! 
+            # 1. Prioritize it in the query
+            match_str = ' '.join(fuzzy_matches)
+            search_query = f"{match_str} details"
+            
+            # 2. FORCE retrieval via metadata filter (Bypass vector noise)
+            # This guarantees the chunk is found even if similarity is low due to acronyms/typos.
+            filters = {"event": match_str} 
+            
+            logger.info(f"[{request_id}] Fuzzy match forced: {req.query} -> {search_query} (Filter: {filters})")
     except Exception as e:
         logger.warning(f"Fuzzy search failed: {e}")
 
