@@ -1,0 +1,32 @@
+# Prometheus Configuration for Aurora RAG Chatbot
+global:
+  scrape_interval: 5s       # Scrape every 5 seconds for real-time data
+  evaluation_interval: 5s    # Evaluate rules every 5 seconds
+  external_labels:
+    cluster: 'aurora-chatbot'
+    environment: 'production'
+
+# Alertmanager configuration (optional)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+scrape_configs:
+  # Aurora Chatbot (running on host machine)
+  - job_name: 'aurora-chatbot'
+    scrape_interval: 5s      # Real-time data every 5 seconds
+    scrape_timeout: 4s
+    static_configs:
+      - targets: ['host.docker.internal:8001']
+        labels:
+          instance: 'aurora-chatbot'
+          
+  # Prometheus self-monitoring (now requires auth)
+  - job_name: 'prometheus'
+    scrape_interval: 10s
+    basic_auth:
+      username: admin
+      password: <YOUR_PASSWORD_HERE>
+    static_configs:
+      - targets: ['localhost:9090']

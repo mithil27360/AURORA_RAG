@@ -35,6 +35,23 @@ async def lifespan(app: FastAPI):
     sheets = get_sheets_service()
     vector = get_vector_service()
     
+    # Initialize Cache Service with Semantic Capabilities
+    from app.services.cache import init_cache_service
+    from app.db.redis import get_redis
+    from app.core.constants import COMMON_QNA
+    
+    redis_client = await get_redis()
+    # Note: Pass vector.embedding directly if it's callable, otherwise wrap it
+    cache_service = await init_cache_service(
+        redis_client=redis_client.redis if hasattr(redis_client, 'redis') else None,
+        embedding_fn=vector.embedding,
+        enable_semantic=True,
+        semantic_threshold=settings.SEMANTIC_CACHE_THRESHOLD
+    )
+    
+    # Warm up cache for instant responses
+    await cache_service.warm_up_semantic(COMMON_QNA)
+    
     if settings.AUTO_SYNC_ENABLED:
         asyncio.create_task(_initial_sync(sheets, vector))
         asyncio.create_task(_periodic_sync_scheduler(sheets, vector))
@@ -43,6 +60,20 @@ async def lifespan(app: FastAPI):
     yield
     
     logger.info("Shutting down...")
+
+
+# Instrumentator for Prometheus
+from prometheus_fastapi_instrumentator import Instrumentator
+
+instrumentator = Instrumentator(
+    should_group_status_codes=True,
+    should_ignore_untemplated=True,
+    should_instrument_requests_inprogress=True,
+    excluded_handlers=[".*admin.*", "/metrics"],
+    env_var_name="ENABLE_METRICS",
+    inprogress_name="inprogress",
+    inprogress_labels=True,
+)
 
 
 async def _initial_sync(sheets, vector):
@@ -99,10 +130,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# GZip compression for faster responses (FAANG-level optimization)
+# GZip compression for faster responses
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
 app.include_router(api_router)
+
+# Expose /metrics endpoint
+instrumentator.instrument(app).expose(app)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
@@ -116,6 +150,9 @@ async def root():
 def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "version": settings.VERSION}
+
+
+# Metrics endpoint handled by instrumentator
 
 
 # Dashboard Authentication

@@ -87,12 +87,30 @@ RESPONSE GUIDELINES:
     - If the date is valid but has no events (e.g., "events today"), say: "No events are scheduled for [Date]."
     - If asked "Is there [Event]?" and it is NOT in the context, say: "No [Event] is currently scheduled." (Check context carefully).
     - GENERAL LISTING: If the user asks for "events", "schedule", or "list" WITHOUT a specific date reference (like "today", "tomorrow"), list ALL events. Do NOT assume "today".
-2. GREETINGS: Greet ONCE per session. Keep it brief.
+2. GREETINGS & SMALL TALK: 
+    - Greet ONCE per session. Keep it brief.
+    - For acknowledgments like \"great\", \"okay\", \"cool\", \"nice\" → Respond naturally: \"Glad to help! Anything else about Aurora Fest?\"
+    - For \"thanks\" → \"You're welcome. Is there anything else I can help you with?\"
+    - For \"bye\" → \"Have a great day!\"
 3. UNSURE / MISSING DATA:
     - If the answer is genuinely missing from context, say: "I couldn't find specific details about [Topic] in the festival guide."
-    - If the input is unclear or gibberish, say: "I didn't quite catch that. Could you rephrase?"
-4. DATES: Use the exact dates from the context. (Note: Current year is 2025).
-5. TONE: Professional, concise (2-3 sentences), and helpful. No sarcasm.
+    - If the input is unclear or contains typos, TRY TO INFER the user's intent. Do not give up easily.
+    - If input is gibberish or completely unrelated, say: "I didn't quite catch that. Could you rephrase?"
+    - STRICT RELEVANCE CHECK:
+        1. **SCAN EVERYTHING**: Read all provided text, including the '**ALL EVENT SUMMARIES**' list.
+        2. **KEYWORD MAPPING**:
+           - **"AI", "ML", "AIML"** Includes: Computer Vision, CNN, Deep Learning, Neural Networks, PyTorch, TensorFlow, Generative Design, Robotics.
+        3. **MATCH DESCRIPTIONS**: If an event's **Description** mentions these relevant keywords, **IT IS RELEVANT**. Recommend it.
+           - **CRITICAL RULE**: Do not judge by the event name. Titles are often ABSTRACT or PUNS. Judge ONLY by the description.
+           - **EXAMPLE**: If an event is named "Project X" but the description says "Deep Learning", IT IS RELEVANT.
+        4. Exclusion: explicit strict exclusion. Do NOT recommend "App Dev", "PCB", or "UI/UX" for AI queries unless they explicitly mention AI terms.
+    - Do not make up TANGENTIAL connections. If an event is strictly relevant, recommend it directly without apologizing.
+    - Do not make up TANGENTIAL connections. If an event is strictly relevant, recommend it directly without apologizing.
+4. FEEDBACK & OPINIONS:
+    - If the user expresses negative feedback (e.g., "waste", "bad"), respond politely: "I'm sorry to hear you feel that way. We value your feedback and will share it with the organizing team."
+    - Do NOT say "I didn't catch that" to opinions.
+5. DATES: Use the exact dates from the context. (Note: Current year is 2025).
+6. TONE: Professional, concise (2-3 sentences), and helpful. No sarcasm.
 
 CONTEXT HANDLING:
 - If the Context is empty or irrelevant to the question, adhere to Guideline #3 (Redirect) or #1 (Missing Data).
@@ -136,10 +154,72 @@ Answer:"""
             }
 
         except Exception as e:
+            error_str = str(e).lower()
+            
+            # Detect timeout specifically
+            if "timeout" in error_str or "timed out" in error_str:
+                logger.error(f"LLM timeout: {e}", extra={"query": query[:50]})
+                return self._error_response(
+                    "I'm taking too long to respond right now. Please try again in a moment.",
+                    confidence=0.0
+                )
+            
+            # Detect rate limiting
+            if "rate" in error_str or "429" in error_str:
+                logger.error(f"LLM rate limited: {e}")
+                return self._error_response(
+                    "I'm handling many requests right now. Please try again in a few seconds.",
+                    confidence=0.0
+                )
+            
+            # Generic error with friendly message
             logger.error(f"LLM error: {e}")
-            with open("debug_error.log", "w") as f:
-                f.write(str(e))
             return self._error_response("I'm having trouble right now. Please try again!")
+
+    def expand_query(self, query: str) -> str:
+        """
+        Expand user query with synonyms and related technical terms.
+        Example: "aiml" -> "aiml artificial intelligence machine learning computer vision nlp"
+        """
+        if not self.client:
+            return query
+
+        try:
+            prompt = f"""You are a query expansion engine for ISTE Manipal's Aurora tech fest.
+User Query: "{query}"
+
+Task:
+1. Identify technical acronyms or broad topics (e.g., "aiml", "web dev", "coding", "robotics").
+2. Expand them into specific related keywords, technologies, and full forms found in typical computer science workshops.
+3. IMPORTANT RULES:
+   - "ISTE" = "Indian Society for Technical Education Manipal student chapter technical club MIT MAHE"
+   - "Aurora" = "Aurora fest tech week ISTE Manipal hackathon workshop CTF competition"
+   - "aiml" = "computer vision machine learning deep learning nlp generative ai neural networks recommendation systems cv dl cnn pytorch tensorflow keras"
+   - "coding" = "hackathon software development git app development"
+4. STRICTLY LIMIT expansion to the identified topic. Do NOT add unrelated keywords.
+5. Output ONLY the expanded list of keywords joined by spaces. Do not add conversational text.
+
+Expanded Query:"""
+
+            response = self.client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                max_tokens=64,
+                timeout=3.0
+            ) # Fast, short generation
+            
+            expanded = response.choices[0].message.content.strip()
+            # Clean up: remove quotes, newlines
+            import re
+            expanded = re.sub(r'[^a-zA-Z0-9\s]', '', expanded)
+            
+            logger.info(f"Query Expansion: '{query}' -> '{expanded}'")
+            return f"{query} {expanded}"
+
+        except Exception as e:
+            logger.warning(f"Query expansion failed: {e}")
+            return query
 
     def _error_response(self, msg: str, confidence: float = 0.0):
         return {"answer": msg, "confidence": confidence, "used_docs": []}

@@ -21,11 +21,26 @@ from app.services.llm import LLMService
 from app.services.security import SecurityService
 from app.services.sheets import get_sheets_service
 from app.services.abuse import get_abuse_detector
+from app.services.cache import get_cache_service
+from app.core import metrics
+from prometheus_client import Histogram, Counter
+
+# Custom Prometheus Metrics
+INTENT_CONFIDENCE = Histogram(
+    'intent_confidence_score',
+    'Confidence score of the intent classification',
+    ['intent']
+)
+
+EMPTY_RESPONSES = Counter(
+    'chat_empty_responses_total',
+    'Total number of empty or "I don\'t know" responses'
+)
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 logger = logging.getLogger(__name__)
-GREETED_SESSIONS = set()
+# GREETED_SESSIONS removed in favor of semantic cache
 
 def get_client_ip(request: Request) -> tuple:
     """Get client IP (returns original and normalized IPv4 if applicable)."""
@@ -48,7 +63,7 @@ def get_client_ip(request: Request) -> tuple:
     return original_ip, ipv4
 
 def normalize_query(query: str) -> str:
-    """FAANG-level query normalization for better cache hits."""
+    """Normalize query for better cache hits."""
     import re
     q = query.lower().strip()
     # Remove extra whitespace
@@ -228,7 +243,7 @@ async def serve_chat(
     logger.info(f"Received chat request [{request_id}] from {ip}")
     start = time.time()
     
-    # FAANG-level query normalization for better cache hits
+    # Query normalization for better cache hits
     normalized_query = normalize_query(req.query)
     
     # Parse device info
@@ -299,71 +314,66 @@ async def serve_chat(
         intent = "rules"
 
     # User Identification & Greeting Logic
+    # User Identification
     user_id = hashlib.md5(ip.encode()).hexdigest()[:16]
-    
-    basic_greetings = ["hi", "hello", "hey"]
-    is_greeting = req.query.lower().strip().rstrip('!.?') in basic_greetings
-    
-    if is_greeting and user_id in GREETED_SESSIONS:
-        response_time = (time.time() - start) * 1000
-        return ChatResponse(
-            answer="How can I help?",
-            confidence=1.0,
-            tier="High",
-            response_time_ms=response_time,
-            intent="general",
-            timestamp=datetime.now().isoformat(),
-            interaction_id=request_id
-        )
-    
-    # Mark active
-    GREETED_SESSIONS.add(user_id)
 
     # Check cache (exact match first, then semantic)
-    cache_key = hashlib.md5(f"{normalized_query}|{intent}|{req.threshold}".encode()).hexdigest()
-    cached_response = await redis.get_cache(cache_key)
-    
-    # Try semantic cache if exact match fails
-    if not cached_response:
-        cached_response = await redis.get_semantic_cache(req.query)
-    
-    if cached_response:
-        logger.info(f"Cache HIT for [{request_id}]")
-        response_time = (time.time() - start) * 1000
-        user_id = hashlib.md5(ip.encode()).hexdigest()[:16]
-        # Background task for logging with enrichment
-        async def log_cached_bg():
-            try:
-                enriched = await enrich_client_data(ip, req.client_data)
-                await interaction_logger.log_interaction(
-                     interaction_id=request_id,
-                     query=req.query,
-                     answer=cached_response["answer"],
-                     intent=intent,
-                     confidence=cached_response["confidence"],
-                     response_time_ms=response_time,
-                     cached=True,
-                     user_id=user_id,
-                     ip_hash=ip_hash,
-                     device_type=device_info["device_type"],
-                     browser=device_info["browser"],
-                     os=device_info["os"],
-                     client_data=enriched
-                )
-                await interaction_logger.log_temp_ip(ip, ip_hash, request_id)
-            except Exception as e:
-                logger.error(f"Background cached log failed: {e}")
-                
-        asyncio.create_task(log_cached_bg())
-        return ChatResponse(
-            answer=cached_response["answer"],
-            confidence=cached_response["confidence"],
-            tier="High", # Cached is always high tier
-            response_time_ms=response_time,
-            intent=intent,
-            timestamp=datetime.now().isoformat(),
-            interaction_id=request_id
-        )
+    # Check new unified cache (L1 + L2 + Semantic)
+    cache_service = get_cache_service()
+    if cache_service:
+        # Generate cache key based on query, intent, and threshold
+        cache_key = f"chat:{normalized_query}:{intent}:{req.threshold}"
+        
+        cached_val, tier = await cache_service.get(cache_key, use_semantic=True, query=req.query)
+        
+        if cached_val:
+            logger.info(f"Cache HIT ({tier}) for [{request_id}]")
+            response_time = (time.time() - start) * 1000
+            
+            # Record cache hit metric
+            metrics.cache_hits_total.labels(tier=tier).inc()
+            metrics.chat_requests_total.labels(
+                intent=intent,
+                cached="true"
+            ).inc()
+            metrics.chat_response_time_ms.labels(
+                intent=intent,
+                tier="High"
+            ).observe(response_time)
+            
+            # Background task for logging with enrichment
+            async def log_cached_bg():
+                try:
+                    enriched = await enrich_client_data(ip, req.client_data)
+                    await interaction_logger.log_interaction(
+                         interaction_id=request_id,
+                         query=req.query,
+                         answer=cached_val["answer"],
+                         intent=intent,
+                         confidence=cached_val.get("confidence", 1.0),
+                         response_time_ms=response_time,
+                         cached=True,
+                         user_id=user_id,
+                         ip_hash=ip_hash,
+                         device_type=device_info["device_type"],
+                         browser=device_info["browser"],
+                         os=device_info["os"],
+                         client_data=enriched
+                    )
+                except Exception as e:
+                    logger.error(f"Background cached log failed: {e}")
+                    
+            asyncio.create_task(log_cached_bg())
+            
+            return ChatResponse(
+                answer=cached_val["answer"],
+                confidence=cached_val.get("confidence", 1.0),
+                tier="High", # Cached is always high tier
+                response_time_ms=response_time,
+                intent=intent,
+                timestamp=datetime.now().isoformat(),
+                interaction_id=request_id
+            )
 
     # Build retrieval filters
     filters = None
@@ -392,6 +402,15 @@ async def serve_chat(
             logger.info(f"[{request_id}] Fuzzy match forced: {req.query} -> {search_query} (Filter: {filters})")
     except Exception as e:
         logger.warning(f"Fuzzy search failed: {e}")
+
+    # --- Query Expansion (Dynamic) ---
+    if not filters: # Only expand if no specific event found via fuzzy search
+        try:
+            # Run expansion in thread to avoid blocking
+            expanded = await asyncio.to_thread(llm.expand_query, search_query)
+            search_query = expanded
+        except Exception as e:
+            logger.warning(f"[{request_id}] Expansion skipped: {e}")
 
     # Vector retrieval with timeout
     try:
@@ -444,6 +463,8 @@ async def serve_chat(
     except asyncio.TimeoutError:
         logger.error(f"[{request_id}] LLM timeout after {settings.LLM_TIMEOUT_SECONDS}s")
         response_time = (time.time() - start) * 1000
+        # Metric: Empty Response (Timeout)
+        EMPTY_RESPONSES.inc()
         return ChatResponse(
             answer="I'm taking too long to think! Please try asking your question again. Our system is experiencing high load.",
             confidence=0.0,
@@ -456,6 +477,8 @@ async def serve_chat(
     except Exception as e:
         logger.error(f"[{request_id}] LLM failed: {e}")
         response_time = (time.time() - start) * 1000
+        # Metric: Empty Response (Error)
+        EMPTY_RESPONSES.inc()
         return ChatResponse(
             answer="I'm having trouble generating a response right now. Please try again in a moment!",
             confidence=0.0,
@@ -468,7 +491,17 @@ async def serve_chat(
     
     response_time = (time.time() - start) * 1000
     
-
+    # Record metrics
+    metrics.cache_misses_total.inc()
+    metrics.chat_requests_total.labels(
+        intent=intent,
+        cached="false"
+    ).inc()
+    metrics.chat_response_time_ms.labels(
+        intent=intent,
+        tier=llm_result.get("tier", "Medium")
+    ).observe(response_time)
+    
     # Background tasks (non-blocking) with enrichment
     async def log_bg_task():
         try:
@@ -476,11 +509,22 @@ async def serve_chat(
              
              # Log history & cache
              await redis.add_history(user_id, req.query, llm_result["answer"])
-             await redis.set_cache(cache_key, {
-                "answer": llm_result["answer"],
-                "confidence": llm_result["confidence"],
-                "intent": intent
-             }, query=req.query)
+             await redis.add_history(user_id, req.query, llm_result["answer"])
+             
+             # Only cache successful responses
+             if cache_service and llm_result.get("confidence", 0.0) > 0.0:
+                 # Store in new cache service
+                 cache_key = f"chat:{normalized_query}:{intent}:{req.threshold}"
+                 await cache_service.set(
+                     cache_key, 
+                     {
+                        "answer": llm_result["answer"],
+                        "confidence": llm_result["confidence"],
+                        "intent": intent
+                     }, 
+                     ttl=settings.CACHE_TTL_SECONDS,
+                     query=req.query
+                 )
 
              await interaction_logger.log_interaction(
                  interaction_id=request_id,
@@ -507,6 +551,13 @@ async def serve_chat(
     asyncio.create_task(log_bg_task())
     
     tier = "High" if llm_result["confidence"] > 0.75 else "Medium" if llm_result["confidence"] > 0.5 else "Low"
+
+    # Custom Metrics: Intent Confidence
+    INTENT_CONFIDENCE.labels(intent=intent).observe(llm_result["confidence"])
+
+    # Custom Metrics: Empty Responses
+    if not llm_result["answer"] or "I don't know" in llm_result["answer"] or "I couldn't find" in llm_result["answer"]:
+        EMPTY_RESPONSES.inc()
 
     return ChatResponse(
         answer=llm_result["answer"],

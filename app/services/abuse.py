@@ -78,7 +78,7 @@ WHITELISTED_INPUTS = {
     "hi", "hello", "hey", "hlo", "hy", "help",
     "thanks", "thank you", "thx", "tks",
     "bye", "goodbye", "cya",
-    "ok", "okay", "k", "cool",
+    "ok", "okay", "k", "cool", "great", "nice", "awesome", "perfect",
     "yes", "no", "yup", "nope",
     "what", "when", "where", "how", "who" # Basic start words
 }

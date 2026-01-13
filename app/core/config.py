@@ -1,59 +1,296 @@
+"""
+Aurora RAG Chatbot - Configuration Management
+
+Simplified, grouped configuration with validation and fail-fast behavior.
+
+Design Decision: Features are gated by design, not implemented until usage justification.
+Removed features: A/B Testing, Voice Input, Multilingual, Personalization, Circuit Breaker.
+"""
 
 import os
+from enum import Enum
 from pathlib import Path
+from typing import List, Optional
+from functools import lru_cache
+
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
+
+class Environment(str, Enum):
+    """Application environment."""
+    DEVELOPMENT = "development"
+    STAGING = "staging"
+    PRODUCTION = "production"
+    TESTING = "testing"
+
+
+# =============================================================================
+# GROUPED CONFIGURATION CLASSES
+# =============================================================================
+
+class ServerConfig(BaseModel):
+    """Server configuration with sensible defaults."""
+    host: str = "0.0.0.0"
+    port: int = Field(default=8001, ge=1, le=65535)
+    workers: int = Field(default=4, ge=1, le=32)
+    max_connections: int = Field(default=500, ge=10, le=10000)
+    keep_alive: int = Field(default=5, ge=1, le=120)
+
+
+class LLMConfig(BaseModel):
+    """LLM configuration with validation."""
+    model: str = "llama-3.1-8b-instant"
+    fallback_model: str = "llama-3.1-70b-versatile"
+    temperature: float = Field(default=0.3, ge=0.0, le=2.0)
+    max_tokens: int = Field(default=1000, ge=100, le=4096)
+    top_p: float = Field(default=0.9, ge=0.0, le=1.0)
+    timeout_seconds: float = Field(default=30.0, ge=5.0, le=120.0)
+    max_retries: int = Field(default=3, ge=0, le=10)
+
+
+class VectorConfig(BaseModel):
+    """Vector store configuration."""
+    confidence_threshold: float = Field(default=0.05, ge=0.0, le=1.0)
+    top_k: int = Field(default=50, ge=1, le=100)
+    timeout_seconds: float = Field(default=10.0, ge=1.0, le=60.0)
+    collection_prefix: str = "Aurora_v_"
+
+
+class CacheConfig(BaseModel):
+    """Cache configuration for L1/L2/Semantic caching."""
+    enabled: bool = True
+    ttl_seconds: int = Field(default=3600, ge=60, le=86400)
+    max_entries: int = Field(default=10000, ge=100, le=100000)
+    semantic_enabled: bool = True
+    semantic_threshold: float = Field(default=0.85, ge=0.5, le=1.0)
+
+
+class RedisConfig(BaseModel):
+    """Redis configuration."""
+    url: str = "redis://localhost:6379/0"
+    max_connections: int = Field(default=50, ge=1, le=500)
+    timeout: float = Field(default=2.0, ge=0.5, le=30.0)
+
+
+class RateLimitConfig(BaseModel):
+    """Rate limiting configuration."""
+    enabled: bool = True
+    requests_per_minute: int = Field(default=60, ge=1, le=1000)
+    burst: int = Field(default=10, ge=1, le=100)
+
+
+class SecurityConfig(BaseModel):
+    """Security configuration."""
+    secret_key: str = Field(default="change-me-in-production")
+    jwt_algorithm: str = "HS256"
+    jwt_expiry_hours: int = Field(default=24, ge=1, le=168)
+    dashboard_username: str = "admin"
+    dashboard_password: str = Field(default="aurora2025")
+    allowed_origins: List[str] = ["http://localhost:8000", "http://localhost:3000"]
+    enable_hsts: bool = True
+
+
+class SyncConfig(BaseModel):
+    """Data sync configuration."""
+    enabled: bool = True
+    interval_minutes: int = Field(default=5, ge=1, le=60)
+    timeout_seconds: float = Field(default=60.0, ge=10.0, le=300.0)
+
+
+class AbuseConfig(BaseModel):
+    """Abuse detection configuration."""
+    enabled: bool = True
+    score_threshold: int = Field(default=20, ge=5, le=100)
+    block_duration_minutes: int = Field(default=15, ge=1, le=1440)
+    max_violations: int = Field(default=5, ge=1, le=20)
+
+
+class LoggingConfig(BaseModel):
+    """Logging configuration."""
+    level: str = "INFO"
+    format: str = "json"  # "json" or "text"
+
+
+# =============================================================================
+# MAIN SETTINGS CLASS
+# =============================================================================
+
 class Settings(BaseSettings):
-    # App
+    """
+    Application settings with grouped configuration.
+    
+    All settings are loaded from environment variables and .env file.
+    Fail-fast validation ensures misconfiguration is caught at startup.
+    """
+    
+    # Application metadata
     TITLE: str = "Aurora Fest RAG Chatbot"
-    VERSION: str = "2.0.0"
-    HOST: str = "0.0.0.0"
-    PORT: int = 8000
-    LOG_LEVEL: str = "INFO"
+    VERSION: str = "3.0.0"
+    ENVIRONMENT: Environment = Environment.DEVELOPMENT
+    DEBUG: bool = False
     STRICT_MODE: bool = True
+
+    # Grouped configurations
+    server: ServerConfig = ServerConfig()
+    llm: LLMConfig = LLMConfig()
+    vector: VectorConfig = VectorConfig()
+    cache: CacheConfig = CacheConfig()
+    redis: RedisConfig = RedisConfig()
+    rate_limit: RateLimitConfig = RateLimitConfig()
+    security: SecurityConfig = SecurityConfig()
+    sync: SyncConfig = SyncConfig()
+    abuse: AbuseConfig = AbuseConfig()
+    logging: LoggingConfig = LoggingConfig()
+
+    # Credentials (required)
+    GROQ_API_KEY: str = Field(default="")
+    GOOGLE_SHEETS_ID: str = Field(default="")
+    GOOGLE_CREDS_FILE: str = "config/credentials.json"
 
     # Paths
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
-    CHROMA_PATH: Path = BASE_DIR / "data" / "chroma_data"
-    DB_PATH: Path = BASE_DIR / "data" / "rag_interactions.db"
-    
-    # Credentials
-    GROQ_API_KEY: str
-    GOOGLE_SHEETS_ID: str
-    GOOGLE_CREDS_FILE: str = "config/credentials.json"
-    
-    # Security
-    DASHBOARD_USERNAME: str = "admin"
-    DASHBOARD_PASSWORD: str = "aurora2025"
-    ALLOWED_ORIGINS: str = "http://localhost:8000"
 
-    # Business Logic Constants
-    CONFIDENCE_THRESHOLD: float = 0.05
-    TOP_K_RESULTS: int = 50
-    LLM_TEMPERATURE: float = 0.3
+    # Core feature flags (only essential ones)
+    FEATURE_CONVERSATION_CONTEXT: bool = True
+    FEATURE_ANALYTICS: bool = True
     
-    # Production Limits (Optimized for 200+ concurrent users)
-    MAX_CONVERSATION_USERS: int = 10000
-    MAX_CACHE_ENTRIES: int = 5000
-    CACHE_TTL_SECONDS: int = 300
-    LLM_TIMEOUT_SECONDS: float = 30.0  # Increased for high load
-    SYNC_TIMEOUT_SECONDS: float = 60.0
-    SYNC_INTERVAL_MINUTES: int = 5
-    AUTO_SYNC_ENABLED: bool = True
-    
-    # Rate Limiting (per IP)
-    RATE_LIMIT_CHAT: str = "60/minute"  # 60 messages/min per user (1/sec is plenty)
-    RATE_LIMIT_BURST: str = "10/second"  # Allow burst of 10
-    
-    # Worker Settings
-    WORKERS: int = 4  # 4 workers for 200 users = ~50 concurrent per worker
-    MAX_CONNECTIONS: int = 500  # Max concurrent connections
+    # Observability
+    ENABLE_METRICS: bool = True
 
-    # Redis
-    REDIS_URL: str = "redis://localhost:6379/0" 
+    # Query limits
+    QUERY_MIN_LENGTH: int = 1
+    QUERY_MAX_LENGTH: int = 500
+
+    # ==========================================================================
+    # COMPUTED PROPERTIES
+    # ==========================================================================
+
+    @property
+    def DATA_DIR(self) -> Path:
+        return self.BASE_DIR / "data"
+
+    @property
+    def CONFIG_DIR(self) -> Path:
+        return self.BASE_DIR / "config"
+
+    @property
+    def LOGS_DIR(self) -> Path:
+        return self.BASE_DIR / "logs"
+
+    @property
+    def CHROMA_PATH(self) -> Path:
+        return self.DATA_DIR / "chroma_data"
+
+    @property
+    def DB_PATH(self) -> Path:
+        return self.DATA_DIR / "rag_interactions.db"
+
+    # ==========================================================================
+    # VALIDATORS
+    # ==========================================================================
+
+    @field_validator('GROQ_API_KEY')
+    @classmethod
+    def validate_groq_key(cls, v):
+        """Warn if GROQ_API_KEY is empty."""
+        if not v:
+            import logging
+            logging.warning("GROQ_API_KEY not set - LLM features will be disabled")
+        return v
+
+    @model_validator(mode='after')
+    def validate_production_security(self):
+        """Fail-fast validation for production environment."""
+        if self.ENVIRONMENT == Environment.PRODUCTION:
+            if self.security.secret_key == "change-me-in-production":
+                raise ValueError("SECRET_KEY must be changed in production")
+            if len(self.security.secret_key) < 32:
+                raise ValueError("SECRET_KEY must be at least 32 characters in production")
+            if self.security.dashboard_password == "aurora2025":
+                raise ValueError("DASHBOARD_PASSWORD must be changed in production")
+        return self
+
+    # ==========================================================================
+    # PYDANTIC CONFIG
+    # ==========================================================================
 
     class Config:
         env_file = ".env"
-        extra = "ignore" # Allow extra env vars
+        env_file_encoding = "utf-8"
+        extra = "ignore"
+        case_sensitive = True
+        env_nested_delimiter = "__"  # Allows SERVER__PORT=8001 in .env
 
-settings = Settings()
+    # ==========================================================================
+    # HELPER METHODS
+    # ==========================================================================
+
+    def is_production(self) -> bool:
+        """Check if running in production environment."""
+        return self.ENVIRONMENT == Environment.PRODUCTION
+
+    def is_development(self) -> bool:
+        """Check if running in development environment."""
+        return self.ENVIRONMENT == Environment.DEVELOPMENT
+
+    def get_log_level_int(self) -> int:
+        """Get numeric log level."""
+        import logging as log_module
+        return getattr(log_module, self.logging.level.upper(), log_module.INFO)
+
+    def ensure_directories(self):
+        """Create required directories if they don't exist."""
+        for dir_path in [self.DATA_DIR, self.CONFIG_DIR, self.LOGS_DIR]:
+            if dir_path:
+                dir_path.mkdir(parents=True, exist_ok=True)
+
+
+# =============================================================================
+# SINGLETON ACCESS
+# =============================================================================
+
+@lru_cache()
+def get_settings() -> Settings:
+    """
+    Get cached settings instance.
+    
+    Uses lru_cache for performance - settings are loaded once
+    and reused throughout the application lifecycle.
+    """
+    return Settings()
+
+
+# Global settings instance for backward compatibility
+settings = get_settings()
+
+
+# =============================================================================
+# BACKWARD COMPATIBILITY (via module-level globals)
+# =============================================================================
+# For legacy code that imports these directly.
+# New code should use: settings.server.host, settings.llm.model, etc.
+
+HOST = settings.server.host
+PORT = settings.server.port
+WORKERS = settings.server.workers
+LLM_MODEL = settings.llm.model
+LLM_TEMPERATURE = settings.llm.temperature
+LLM_MAX_TOKENS = settings.llm.max_tokens
+LLM_TIMEOUT_SECONDS = settings.llm.timeout_seconds
+CONFIDENCE_THRESHOLD = settings.vector.confidence_threshold
+TOP_K_RESULTS = settings.vector.top_k
+ENABLE_CACHE = settings.cache.enabled
+CACHE_TTL_SECONDS = settings.cache.ttl_seconds
+ENABLE_SEMANTIC_CACHE = settings.cache.semantic_enabled
+SEMANTIC_CACHE_THRESHOLD = settings.cache.semantic_threshold
+REDIS_URL = settings.redis.url
+ENABLE_RATE_LIMITING = settings.rate_limit.enabled
+SECRET_KEY = settings.security.secret_key
+DASHBOARD_USERNAME = settings.security.dashboard_username
+DASHBOARD_PASSWORD = settings.security.dashboard_password
+ALLOWED_ORIGINS = settings.security.allowed_origins
+AUTO_SYNC_ENABLED = settings.sync.enabled
+SYNC_INTERVAL_MINUTES = settings.sync.interval_minutes
+ENABLE_ABUSE_DETECTION = settings.abuse.enabled
+LOG_LEVEL = settings.logging.level

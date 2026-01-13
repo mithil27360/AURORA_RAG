@@ -1,32 +1,66 @@
+# =============================================================================
+# Aurora RAG Chatbot - Production Dependencies
+# =============================================================================
+
 # Core Framework
-fastapi
-uvicorn[standard]
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
 pydantic>=2.5.0
-pydantic-settings
+pydantic-settings>=2.1.0
 
 # RAG Components
-chromadb
-sentence-transformers
-groq
+chromadb>=0.4.0
+sentence-transformers>=2.2.0
+groq>=0.4.0
 
-# Google Sheets
-gspread
-google-auth
-google-auth-oauthlib
-google-auth-httplib2
+# Google Sheets Integration
+gspread>=5.12.0
+google-auth>=2.25.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
 
-# Utilities
-python-dotenv
-pandas
-numpy
-openpyxl
+# Database
+aiosqlite>=0.19.0
+redis>=5.0.0
+
+# HTTP Client
+aiohttp>=3.9.0
+httpx>=0.26.0
+
+# Security
+cryptography>=41.0.0
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+better-profanity>=0.7.0
+
+# Rate Limiting & Middleware
+slowapi>=0.1.9
+python-multipart>=0.0.6
+starlette>=0.35.0
 
 # Background Tasks
-APScheduler
+APScheduler>=3.10.0
 
-# Production
-slowapi
-python-multipart
-redis>=5.0.0
-better-profanity
-gunicorn  # Multi-worker production server for 200+ users
+# Utilities
+python-dotenv>=1.0.0
+pandas>=2.0.0
+numpy>=1.24.0
+openpyxl>=3.1.0
+
+# Production Server
+gunicorn>=21.0.0
+
+# Logging & Monitoring
+structlog>=24.1.0
+
+# Testing (dev only)
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+locust>=2.20.0
+
+# Development (optional)
+black>=24.1.0
+isort>=5.13.0
+mypy>=1.8.0
+prometheus-fastapi-instrumentator>=7.0.0

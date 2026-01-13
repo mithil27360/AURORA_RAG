@@ -1,0 +1,16 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://aurora-prometheus:9090
+    isDefault: true
+    basicAuth: true
+    basicAuthUser: admin
+    secureJsonData:
+      basicAuthPassword: <YOUR_PASSWORD_HERE>
+    jsonData:
+      httpMethod: POST
+      timeInterval: 15s
+    editable: false

@@ -1,0 +1,8 @@
+# Prometheus Basic Authentication Configuration
+# Reference: https://prometheus.io/docs/guides/basic-auth/
+
+basic_auth_users:
+  # Username: admin
+  # Password: <YOUR_PASSWORD_HERE>
+  # Hash generated with: python3 -c "import bcrypt; print(bcrypt.hashpw(b'<YOUR_PASSWORD_HERE>', bcrypt.gensalt()).decode())"
+  admin: $2b$12$2YzHW5c46NJc4AyzupvGHeclA9mLb0tsvFQXV7ag/uSt1U2Bhnm2u

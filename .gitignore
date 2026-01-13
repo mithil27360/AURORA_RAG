@@ -1,7 +1,9 @@
 # Environment and Credentials
 .env
 credentials.json
-*.json
+config/credentials.json
+!config/grafana/**/*.json
+!config/prometheus/*.json
 
 # Vector Database
 chroma_data/
@@ -68,3 +70,48 @@ export_*
 *.db
 *.db-shm
 *.db-wal
+.env
+config/ssl/*.key
+
+# Process ID files
+*.pid
+
+# Backup files
+backups/
+*.bak
+*.backup
+
+# Data directory (large vector embeddings)
+data/
+
+# SSL Certificates (keep only examples)
+config/ssl/*.crt
+config/ssl/*.pem
+!config/ssl/*.example
+
+# Secrets
+*.secret
+*_secret*
+*credentials*
+!*credentials*.example
+
+# Metrics/Debug output
+metrics.txt
+stress_test_output.log
+
+# Node modules (if any frontend added)
+node_modules/
+
+# Config files with passwords (use .example versions)
+config/prometheus/prometheus.yml
+config/prometheus/web-config.yml
+config/grafana/provisioning/datasources/prometheus.yml
+docker-compose.prod.yml
+!docker-compose.prod.example.yml
+!config/prometheus/*.example.yml
+!config/grafana/**/*.example.yml
+
+# Deployment artifacts
+*.tar.gz
+*.tar
+aurora-image.tar.gz

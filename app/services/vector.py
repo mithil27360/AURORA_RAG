@@ -48,7 +48,7 @@ class VectorService:
             logger.info(f"Created new collection: {self.active_collection_name}")
             
     async def search(self, query: str, k: int = settings.TOP_K_RESULTS, filters: Dict = None):
-        """Async wrapper for search (Non-blocking)"""
+        """Async wrapper for search with timeout handling (Non-blocking)"""
         if not self.collection:
             return []
             
@@ -62,8 +62,18 @@ class VectorService:
             else:
                 return self.collection.query(query_texts=[query], n_results=k)
 
-        # Run in thread pool
-        results = await asyncio.to_thread(_sync_search)
+        try:
+            # Run in thread pool with timeout
+            results = await asyncio.wait_for(
+                asyncio.to_thread(_sync_search),
+                timeout=settings.vector.timeout_seconds if hasattr(settings, 'vector') else 10.0
+            )
+        except asyncio.TimeoutError:
+            logger.error("ChromaDB search timed out", extra={"query": query[:50]})
+            return []  # Return empty, let LLM handle "no context found"
+        except Exception as e:
+            logger.error(f"ChromaDB search error: {e}")
+            return []  # Graceful degradation
         
         # Process results
         processed = []
@@ -222,12 +232,12 @@ class VectorService:
         static_chunks = [
             {
                 "id": "about_iste_manipal",
-                "text": """ABOUT ISTE MANIPAL: ISTE Manipal is the Indian Society for Technical Education Student's Chapter at MIT Manipal. It is a multi-disciplinary technical club that organizes workshops, seminars, competitions, and vacation schools to develop members into skilled engineers. The club focuses on all-round development through projects, mini-projects, and alumni networking, creating a productive learning environment for tech enthusiasts across all engineering branches. ISTE Manipal organizes technical workshops covering Git, Python (basic to advanced), OpenCV, and emerging technologies, as well as seminars, competitions, and project-based learning opportunities with mentorship.""",
+                "text": """ABOUT ISTE MANIPAL: ISTE Manipal stands for the Indian Society for Technical Education, Students' Chapter - a large, multi-disciplinary technical club at the Manipal Institute of Technology (MIT), Manipal Academy of Higher Education (MAHE). ISTE Manipal is a student community focused on advancing student skills through technical and non-technical initiatives including workshops, hackathons, and guest speaker events. Key activities include ACUMEN (technical event series), AURORA (annual tech week), Summer/Winter School (foundational learning in DSA, AI/ML), and Tech Tatva. The club operates across Technical domains (App/Web Development, Coding, AI/ML) and Non-Technical domains (Graphics Design, Content Writing, HR, PR). It is one of MIT Manipal's largest student clubs with active memberships nationally, led by a student board and management committee.""",
                 "metadata": {"type": "about", "topic": "iste"}
             },
             {
                 "id": "about_aurora_fest",
-                "text": """ABOUT AURORA FEST: Aurora is MIT Manipal's biggest tech week, organized by ISTE Manipal. It features hands-on workshops, high-intensity hackathons, and mind-bending CTFs (Capture The Flag competitions). This annual technical extravaganza serves as a platform for students to engage with cutting-edge technology and practical skill development. Aurora Fest 2025 is happening in January 2025 with multiple events, workshops, and hackathons.""",
+                "text": """ABOUT AURORA: Aurora is the annual flagship technical week (tech fest) organized by ISTE Manipal at MIT Manipal. Described as the 'biggest tech week of Manipal', it is a multi-day extravaganza designed to foster innovation, creativity, and technical learning. Key features include: Workshops (hands-on sessions on OpenCV, AI/ML, web development, cryptography), Competitions (hackathons like Hackspark, CTF events, coding contests, treasure hunts), Guest Speakers (industry leaders and entrepreneurs sharing insights), and Collaborations with other clubs (ACM Manipal, Astronomy Club, Project Dronaid). Aurora provides a platform for students to turn ideas into reality, form connections with mentors and alumni, and begin their journey toward technical mastery.""",
                 "metadata": {"type": "about", "topic": "aurora"}
             },
             {
@@ -237,14 +247,14 @@ class VectorService:
             },
             {
                 "id": "about_identity_repo",
-                "text": """ABOUT AURORA CHATBOT: I am the Aurora Fest Assistant, an AI built to help you navigate the ISTE Aurora 2025 college fest. I can help with event schedules, registration, workshops, and more. I am here to assist students with all things Aurora.""",
+                "text": """ABOUT AURORA CHATBOT: I am the Aurora Fest Assistant, an AI built to help you navigate the ISTE Aurora 2025 college fest at MIT Manipal. I can help with event schedules, registration, workshops, hackathons, and more. Aurora is organized by ISTE Manipal (Indian Society for Technical Education, Students' Chapter).""",
                 "metadata": {"type": "about", "topic": "identity"}
             },
             {
                 "id": "about_chief_guest",
-                "text": """AURORA CHIEF GUEST: The Chief Guest for the Aurora Fest 2025 inauguration ceremony is yet to be officially announced. Please keep an eye on our social media handles and the official website for the big reveal! We usually invite prominent industry leaders or scientists.""",
+                "text": """AURORA CHIEF GUEST: The Chief Guest for Aurora Fest 2025 inauguration ceremony is yet to be officially announced. Please check ISTE Manipal's social media handles and official website for updates. We usually invite prominent industry leaders or scientists.""",
                 "metadata": {"type": "about", "topic": "guest"}
-            }
+            },
         ]
         chunks.extend(static_chunks)
         
@@ -290,7 +300,7 @@ class VectorService:
         sorted_names = sorted(event_groups.keys(), key=get_min_date)
 
         # ===== MASTER EVENT LIST (Critical for "all events" queries) =====
-        master_list = "ALL EVENTS AT AURORA FEST 2025:\n"
+        master_list = "**ALL EVENT SUMMARIES** (Read these for relevance):\n"
         for i, name in enumerate(sorted_names, 1):
             rows = event_groups[name]
             # Use first row for static details, but calculate date range
@@ -305,7 +315,11 @@ class VectorService:
             if start_date != end_date:
                 date_str = f"({start_date} to {end_date})"
 
-            master_list += f"{i}. {name} ({ev.get('event_type', 'Event')}) - by {ev.get('club_name', 'Aurora Team')} {date_str}\n"
+            # Add truncated description to master list for better context
+            description = ev.get('event_description') or ev.get('project_description') or ""
+            short_desc = " ".join(description.split()[:15]) + "..." if description else ""
+            
+            master_list += f"{i}. {name} ({ev.get('event_type', 'Event')}) - by {ev.get('club_name', 'Aurora Team')} {date_str} - {short_desc}\n"
 
         chunks.append({
             "id": "master_event_list",
@@ -330,7 +344,7 @@ class VectorService:
         
         # ===== EVENTS BY TYPE =====
         for etype, names in events_by_type.items():
-            text = f"{etype.upper()}S AT AURORA FEST: " + ", ".join(names)
+            text = f"{etype.upper()}S AT AURORA FEST:\n" + "\n".join([f"- {n}" for n in names])
             chunks.append({
                 "id": f"events_type_{etype.lower().replace(' ', '_')}",
                 "text": text,
@@ -359,6 +373,7 @@ class VectorService:
 Type: {ev.get('event_type', 'Event')}
 Organized by: {club}
 Dates: {sdate} to {edate}
+Description: {ev.get('event_description') or ev.get('project_description') or ev.get('topics_covered', 'No description available.')}
 Registration: {ev.get('registration_required', 'No')}
 Certificate: {ev.get('certificate_offered', 'No')}"""
             
@@ -410,12 +425,12 @@ Certificate: {ev.get('certificate_offered', 'No')}"""
                     "metadata": {"event": name, "type": "schedule"}
                 })
             
-            # Topics
-            topics = event.get("topics_covered") or event.get("project_description")
+            # Topics / Description
+            topics = event.get("topics_covered") or event.get("project_description") or event.get("event_description")
             if topics:
                 chunks.append({
                     "id": f"{name}_topics_day{day}",
-                    "text": f"TOPICS in {name}: {topics}",
+                    "text": f"**EVENT DETAILS** for {name}: {topics}",
                     "metadata": {"event": name, "type": "description"}
                 })
             
