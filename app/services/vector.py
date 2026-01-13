@@ -47,7 +47,7 @@ class VectorService:
             )
             logger.info(f"Created new collection: {self.active_collection_name}")
             
-    async def search(self, query: str, k: int = settings.TOP_K_RESULTS, filters: Dict = None):
+    async def search(self, query: str, k: int = None, filters: Dict = None):
         """Async wrapper for search with timeout handling (Non-blocking)"""
         if not self.collection:
             return []
@@ -86,7 +86,7 @@ class VectorService:
                 # Similarity conversion
                 similarity = max(0.0, 1.0 - (dist / 2.0))
                 
-                if similarity >= settings.CONFIDENCE_THRESHOLD:
+                if similarity >= settings.vector.confidence_threshold:
                     processed.append({
                         "text": doc,
                         "score": similarity,

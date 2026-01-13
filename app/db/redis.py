@@ -107,8 +107,10 @@ class RedisClient:
             logger.warning(f"Semantic cache lookup failed: {e}")
             return None
 
-    async def set_cache(self, key: str, value: dict, ttl: int = settings.CACHE_TTL_SECONDS, query: str = None):
+    async def set_cache(self, key: str, value: dict, ttl: int = None, query: str = None):
         """Set cached response (with semantic indexing)"""
+        if ttl is None:
+            ttl = settings.cache.ttl_seconds if hasattr(settings, 'cache') else 3600
         await self._ensure_connection()
         await self.redis.set(
             f"cache:{key}",

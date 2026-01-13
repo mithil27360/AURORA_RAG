@@ -12,7 +12,7 @@ class LLMService:
     """Groq-based LLM service for RAG answer generation."""
     
     def __init__(self):
-        self.api_key = settings.GROQ_API_KEY
+        self.api_key = settings.GROQ_API_KEY if hasattr(settings, 'GROQ_API_KEY') else settings.llm.api_key
         self.total_requests = 0
         
         if not self.api_key:
@@ -45,7 +45,7 @@ class LLMService:
             history_text = "\n".join([f"User: {h['query']}\nAI: {h['answer']}" for h in history])
 
         system_instruction = ""
-        if settings.STRICT_MODE:
+        if getattr(settings.llm, 'strict_mode', True):
             system_instruction = """
 - STRICT MODE: Answer ONLY from provided context.
 - Do NOT hallucinate. If unsure, say "I don't have that information".
@@ -128,7 +128,7 @@ Intent: {intent}
 Answer:"""
 
         try:
-            temp = 0.1 if settings.STRICT_MODE else settings.LLM_TEMPERATURE
+            temp = 0.1 if getattr(settings.llm, 'strict_mode', True) else settings.llm.temperature
 
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -140,7 +140,7 @@ Answer:"""
                 max_tokens=1000,
                 presence_penalty=0.6,
                 frequency_penalty=0.1,
-                timeout=settings.LLM_TIMEOUT_SECONDS
+                timeout=settings.llm.timeout_seconds
             )
             
             self.total_requests += 1

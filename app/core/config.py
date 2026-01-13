@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import List, Optional
 from functools import lru_cache
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, computed_field
 from pydantic_settings import BaseSettings
 
 
@@ -146,7 +146,13 @@ class Settings(BaseSettings):
     # Credentials (required)
     GROQ_API_KEY: str = Field(default="")
     GOOGLE_SHEETS_ID: str = Field(default="")
+
     GOOGLE_CREDS_FILE: str = "config/credentials.json"
+    
+    # Dashboard Credentials (loaded from env)
+    DASHBOARD_USERNAME: str = Field(default="admin")
+    DASHBOARD_PASSWORD: str = Field(default="aurora2025")
+    SECRET_KEY: str = Field(default="change-me-in-production")
 
     # Paths
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
@@ -200,8 +206,17 @@ class Settings(BaseSettings):
         return v
 
     @model_validator(mode='after')
-    def validate_production_security(self):
-        """Fail-fast validation for production environment."""
+    def validate_and_sync_security(self):
+        """Sync credentials and validate production security."""
+        # Sync credentials first
+        if self.DASHBOARD_USERNAME != "admin":
+            self.security.dashboard_username = self.DASHBOARD_USERNAME
+        if self.DASHBOARD_PASSWORD != "aurora2025":
+            self.security.dashboard_password = self.DASHBOARD_PASSWORD
+        if self.SECRET_KEY != "change-me-in-production":
+            self.security.secret_key = self.SECRET_KEY
+
+        # Fail-fast validation for production environment
         if self.ENVIRONMENT == Environment.PRODUCTION:
             if self.security.secret_key == "change-me-in-production":
                 raise ValueError("SECRET_KEY must be changed in production")
@@ -234,6 +249,8 @@ class Settings(BaseSettings):
         """Check if running in development environment."""
         return self.ENVIRONMENT == Environment.DEVELOPMENT
 
+
+
     def get_log_level_int(self) -> int:
         """Get numeric log level."""
         import logging as log_module
@@ -245,7 +262,57 @@ class Settings(BaseSettings):
             if dir_path:
                 dir_path.mkdir(parents=True, exist_ok=True)
 
-
+    def __getattr__(self, name: str):
+        """Dynamic attribute access for backward compatibility."""
+        # Mapping of flat names to grouped config paths
+        LEGACY_MAP = {
+            # LLM
+            'GROQ_API_KEY': lambda s: s.llm.api_key,
+            'LLM_MODEL': lambda s: s.llm.model,
+            'LLM_TEMPERATURE': lambda s: s.llm.temperature,
+            'LLM_MAX_TOKENS': lambda s: s.llm.max_tokens,
+            'LLM_TIMEOUT_SECONDS': lambda s: s.llm.timeout_seconds,
+            'STRICT_MODE': lambda s: getattr(s.llm, 'strict_mode', True),
+            # Vector
+            'CONFIDENCE_THRESHOLD': lambda s: s.vector.confidence_threshold,
+            'TOP_K_RESULTS': lambda s: s.vector.top_k,
+            # Cache
+            'ENABLE_CACHE': lambda s: s.cache.enabled,
+            'CACHE_TTL_SECONDS': lambda s: s.cache.ttl_seconds,
+            'ENABLE_SEMANTIC_CACHE': lambda s: s.cache.semantic_enabled,
+            'SEMANTIC_CACHE_THRESHOLD': lambda s: s.cache.semantic_threshold,
+            # Redis
+            'REDIS_URL': lambda s: s.redis.url,
+            # Rate Limit
+            'ENABLE_RATE_LIMITING': lambda s: s.rate_limit.enabled,
+            'RATE_LIMIT_CHAT': lambda s: f"{s.rate_limit.requests_per_minute}/minute",
+            # Security
+            'SECRET_KEY': lambda s: s.security.secret_key,
+            'DASHBOARD_USERNAME': lambda s: s.security.dashboard_username,
+            'DASHBOARD_PASSWORD': lambda s: s.security.dashboard_password,
+            'ALLOWED_ORIGINS': lambda s: s.security.allowed_origins,
+            'ENABLE_HSTS': lambda s: True,
+            'HSTS_MAX_AGE': lambda s: 31536000,
+            'ENABLE_CSP': lambda s: True,
+            # Sync
+            'AUTO_SYNC_ENABLED': lambda s: s.sync.enabled,
+            'SYNC_INTERVAL_MINUTES': lambda s: s.sync.interval_minutes,
+            'SYNC_TIMEOUT_SECONDS': lambda s: getattr(s.sync, 'timeout_seconds', 60),
+            # Abuse
+            'ENABLE_ABUSE_DETECTION': lambda s: s.abuse.enabled,
+            # Logging
+            'LOG_LEVEL': lambda s: s.logging.level,
+            # Misc
+            'MAX_CONVERSATION_USERS': lambda s: 10000,
+            'SESSION_TTL_SECONDS': lambda s: 3600,
+            'MAX_HISTORY_TURNS': lambda s: 10,
+            'DEBUG': lambda s: s.ENVIRONMENT == Environment.DEVELOPMENT,
+        }
+        
+        if name in LEGACY_MAP:
+            return LEGACY_MAP[name](self)
+        
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 # =============================================================================
 # SINGLETON ACCESS
 # =============================================================================

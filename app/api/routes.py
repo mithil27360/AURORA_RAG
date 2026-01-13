@@ -86,7 +86,7 @@ def normalize_query(query: str) -> str:
 # --- Schemas ---
 class ChatRequest(BaseModel):
     query: str
-    threshold: Optional[float] = settings.CONFIDENCE_THRESHOLD
+    threshold: Optional[float] = 0.5  # Default threshold
     client_data: Optional[dict] = None  # Cookies, localStorage, screen info
 
 class ChatResponse(BaseModel):
@@ -228,7 +228,7 @@ async def enrich_client_data(ip: str, client_data: dict) -> dict:
     return client_data
 
 @router.post("/chat", response_model=ChatResponse)
-@limiter.limit(settings.RATE_LIMIT_CHAT)
+@limiter.limit("30/minute")
 async def serve_chat(
     request: Request, 
     req: ChatRequest,
@@ -415,7 +415,7 @@ async def serve_chat(
     # Vector retrieval with timeout
     try:
         chunks = await asyncio.wait_for(
-            vector_store.search(search_query, k=settings.TOP_K_RESULTS, filters=filters),
+            vector_store.search(search_query, k=settings.vector.top_k, filters=filters),
             timeout=10.0  # 10 second hard timeout for vector search
         )
     except asyncio.TimeoutError:
@@ -458,10 +458,10 @@ async def serve_chat(
     try:
         llm_result = await asyncio.wait_for(
             asyncio.to_thread(llm.get_answer, req.query, chunks, intent, history),
-            timeout=settings.LLM_TIMEOUT_SECONDS
+            timeout=settings.llm.timeout_seconds
         )
     except asyncio.TimeoutError:
-        logger.error(f"[{request_id}] LLM timeout after {settings.LLM_TIMEOUT_SECONDS}s")
+        logger.error(f"[{request_id}] LLM timeout after {settings.llm.timeout_seconds}s")
         response_time = (time.time() - start) * 1000
         # Metric: Empty Response (Timeout)
         EMPTY_RESPONSES.inc()
@@ -522,7 +522,7 @@ async def serve_chat(
                         "confidence": llm_result["confidence"],
                         "intent": intent
                      }, 
-                     ttl=settings.CACHE_TTL_SECONDS,
+                     ttl=settings.cache.ttl_seconds if hasattr(settings, 'cache') else 3600,
                      query=req.query
                  )
 
@@ -595,7 +595,7 @@ async def login_page():
 
 @router.post("/login", response_model=LoginResponse)
 async def login(req: LoginRequest):
-    if req.username == settings.DASHBOARD_USERNAME and req.password == settings.DASHBOARD_PASSWORD:
+    if req.username == settings.security.dashboard_username and req.password == settings.security.dashboard_password:
         # Simple session token (stateless for this demo)
         token = f"session-{uuid.uuid4()}"
         return LoginResponse(

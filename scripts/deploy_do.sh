@@ -92,9 +92,11 @@ ufw allow 80/tcp
 ufw allow 443/tcp
 ufw --force enable
 
-# Create app directory
+# Create app directory and set permissions
 mkdir -p /opt/aurora/data/chroma
 mkdir -p /opt/aurora/data/logs
+mkdir -p /opt/aurora/data/backups
+chmod -R 777 /opt/aurora/data
 
 echo "Server setup complete"
 SETUP
@@ -165,10 +167,15 @@ docker run -d \
     --name aurora-app \
     --restart unless-stopped \
     --env-file .env \
+    -e ENVIRONMENT=development \
     -e REDIS_URL=redis://host.docker.internal:6379/0 \
-    -p 127.0.0.1:8001:8001 \
+    -e TRANSFORMERS_CACHE=/tmp/models \
+    -e HF_HOME=/tmp/huggingface \
+    -p 127.0.0.1:8001:8000 \
+    -v /opt/aurora/app:/app/app \
     -v /opt/aurora/data/chroma:/app/data/chroma_data \
     -v /opt/aurora/data/logs:/app/logs \
+    -v /opt/aurora/data/backups:/app/backups \
     --add-host=host.docker.internal:host-gateway \
     aurora:latest
 

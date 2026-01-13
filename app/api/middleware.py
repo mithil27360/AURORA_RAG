@@ -196,7 +196,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
         }
         
         # Add details in non-production
-        if settings.DEBUG or settings.is_development():
+        if settings.is_development():
             response_body["error"]["details"] = str(error)
             response_body["error"]["type"] = type(error).__name__
         
@@ -527,7 +527,7 @@ def setup_middleware(app):
     app.add_middleware(RequestIDMiddleware)
     
     # Request logging
-    if settings.DEBUG or settings.ENVIRONMENT.value == "development":
+    if settings.is_development():
         app.add_middleware(RequestLoggingMiddleware, log_body=False)
     
     # API versioning
