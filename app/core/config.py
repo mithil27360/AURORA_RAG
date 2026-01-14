@@ -114,7 +114,7 @@ class LoggingConfig(BaseModel):
 
 class OptimizationConfig(BaseModel):
     """Latency optimization configuration."""
-    latency_mode: str = "turbo"  # "normal" or "turbo"
+    latency_mode: str = "turbo"  # "normal" or "turbo" (fast mode)
     enable_reranking: bool = False  # Disabled by default in Turbo
     enable_streaming: bool = False   # Disabled by default in Turbo
     Turbo_top_k: int = 3
@@ -227,14 +227,14 @@ class Settings(BaseSettings):
         if self.SECRET_KEY != "change-me-in-production":
             self.security.secret_key = self.SECRET_KEY
 
-        # Fail-fast validation for production environment
+        # Validate critical security settings
         if self.ENVIRONMENT == Environment.PRODUCTION:
             if self.security.secret_key == "change-me-in-production":
-                raise ValueError("SECRET_KEY must be changed in production")
+                raise ValueError("SECRET_KEY must be changed for deployment")
             if len(self.security.secret_key) < 32:
-                raise ValueError("SECRET_KEY must be at least 32 characters in production")
+                raise ValueError("SECRET_KEY must be at least 32 characters")
             if self.security.dashboard_password == "aurora2025":
-                raise ValueError("DASHBOARD_PASSWORD must be changed in production")
+                raise ValueError("DASHBOARD_PASSWORD must be changed")
         return self
 
     # ==========================================================================

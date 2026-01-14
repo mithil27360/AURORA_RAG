@@ -5,12 +5,12 @@ A high-concurrency Retrieval Augmented Generation (RAG) system built for the IST
 ## Overview
 This project is an event assistant chatbot that answers queries about schedules, workshops, and hackathons. It is engineered to handle "thundering herd" traffic spikes during festival events without crashing or timing out.
 
-**Current Status**: Stable v3.0 (Production Ready)
+**Current Status**: Stable v3.0
 
-Unlike standard RAG implementations, this system is optimized for **throughput** and **latency** using:
-- **FastEmbed (ONNX)**: Quantized embedding generation (4x faster than standard PyTorch).
-- **Request Queuing**: Application-level semaphores to prevent CPU thrashing under load.
-- **Smart Rate Limiting**: Distributed key rotation and per-IP throttling.
+Unlike standard RAG implementations, this system is designed for **speed** and **stability** using:
+- **FastEmbed (ONNX)**: Efficient embedding generation.
+- **Request Queuing**: Smart handling of traffic spikes.
+- **Smart Rate Limiting**: Advanced key rotation and throttling.
 
 ## Performance
 - **Latency**: ~300ms for cached/streaming responses.
@@ -25,7 +25,7 @@ Unlike standard RAG implementations, this system is optimized for **throughput**
 
 ## Observability & Monitoring
 
-The system comes with a full observability stack (Prometheus + Grafana) enabled by default in production.
+The system includes built-in monitoring tools (Prometheus + Grafana) enabled in deployed environments.
 
 | Component | URL (Local) | Credentials | Description |
 | :--- | :--- | :--- | :--- |

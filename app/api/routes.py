@@ -432,7 +432,7 @@ async def serve_chat(
     if is_turbo:
         # Skip reranker for performance optimization
         chunks = chunks[:settings.optimization.Turbo_top_k]
-        logger.info(f"[{request_id}] Latency Switch: Skipped Reranker, using top {len(chunks)} chunks")
+        logger.info(f"[{request_id}] Fast Mode: Skipped Reranker, using top {len(chunks)} chunks")
     else:
         # Phase 1: Reranking (Only in High Precision Mode)
         if chunks and len(chunks) > settings.vector.top_k:
