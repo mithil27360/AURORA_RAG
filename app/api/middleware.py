@@ -504,7 +504,7 @@ class CompressionMiddleware(BaseHTTPMiddleware):
             return response
         
         # Note: For full implementation, would need to intercept response body
-        # This is a placeholder - use FastAPI's GZipMiddleware for production
+        # Note: Use FastAPI's GZipMiddleware for full compression support
         
         return response
 

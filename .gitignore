@@ -104,9 +104,7 @@ node_modules/
 
 # Config files with passwords (use .example versions)
 config/prometheus/prometheus.yml
-config/prometheus/web-config.yml
 config/grafana/provisioning/datasources/prometheus.yml
-docker-compose.prod.yml
 !docker-compose.prod.example.yml
 !config/prometheus/*.example.yml
 !config/grafana/**/*.example.yml
