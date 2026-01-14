@@ -172,8 +172,107 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 
 app.include_router(api_router)
 
-# Expose /metrics endpoint
-instrumentator.instrument(app).expose(app)
+# Instrument the app for internal tracking but don't expose default /metrics
+instrumentator.instrument(app)
+
+# Custom /metrics endpoint that syncs DB metrics before exposing
+from fastapi import Response
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from app.db.sqlite import InteractionLogger
+from app.core.config import settings
+
+@app.get("/metrics")
+def metrics():
+    """Custom metrics endpoint that syncs database stats before returning metrics."""
+    # Sync database metrics synchronously
+    try:
+        import sqlite3
+        from app.core.metrics import (
+            db_total_queries, db_avg_confidence, db_avg_latency_ms,
+            db_cache_hit_rate, db_low_confidence_count, db_intent_count,
+            db_feedback_helpful, db_feedback_not_helpful,
+            db_device_count, db_country_count
+        )
+        
+        # Direct sync read from SQLite (synchronous)
+        conn = sqlite3.connect(settings.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        
+        # Basic stats
+        c.execute('''
+            SELECT 
+                COUNT(*) as total,
+                AVG(response_time_ms) as avg_time,
+                AVG(confidence_score) as avg_conf,
+                SUM(CASE WHEN cached=1 THEN 1 ELSE 0 END) as cache_hits,
+                SUM(CASE WHEN confidence_score < 0.5 THEN 1 ELSE 0 END) as low_conf_count
+            FROM interactions
+        ''')
+        row = c.fetchone()
+        total = row['total'] or 0
+        
+        # Set gauge values
+        db_total_queries.set(total)
+        db_avg_latency_ms.set(row['avg_time'] or 0)
+        db_avg_confidence.set(row['avg_conf'] or 0)
+        db_cache_hit_rate.set((row['cache_hits'] / total * 100) if total > 0 else 0)
+        db_low_confidence_count.set(row['low_conf_count'] or 0)
+        
+        # Top intents
+        c.execute('''
+            SELECT detected_intent, COUNT(*) as count 
+            FROM interactions 
+            GROUP BY detected_intent 
+            ORDER BY count DESC 
+            LIMIT 5
+        ''')
+        for r in c.fetchall():
+            intent = r['detected_intent'] or 'unknown'
+            db_intent_count.labels(intent=intent).set(r['count'])
+        
+        # Feedback counts
+        c.execute('''
+            SELECT 
+                SUM(CASE WHEN feedback='helpful' THEN 1 ELSE 0 END) as thumbs_up,
+                SUM(CASE WHEN feedback='not_helpful' THEN 1 ELSE 0 END) as thumbs_down
+            FROM interactions
+        ''')
+        fb_row = c.fetchone()
+        db_feedback_helpful.set(fb_row['thumbs_up'] or 0)
+        db_feedback_not_helpful.set(fb_row['thumbs_down'] or 0)
+        
+        # Device type distribution
+        c.execute('''
+            SELECT device_type, COUNT(*) as count 
+            FROM interactions 
+            WHERE device_type IS NOT NULL AND device_type != ''
+            GROUP BY device_type 
+            ORDER BY count DESC 
+            LIMIT 5
+        ''')
+        for r in c.fetchall():
+            db_device_count.labels(device_type=r['device_type'] or 'Unknown').set(r['count'])
+        
+        # Country distribution
+        c.execute('''
+            SELECT country, COUNT(*) as count 
+            FROM interactions 
+            WHERE country IS NOT NULL AND country != ''
+            GROUP BY country 
+            ORDER BY count DESC 
+            LIMIT 5
+        ''')
+        for r in c.fetchall():
+            db_country_count.labels(country=r['country'] or 'Unknown').set(r['count'])
+        
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Failed to sync db metrics: {e}")
+    
+    # Return prometheus metrics
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 

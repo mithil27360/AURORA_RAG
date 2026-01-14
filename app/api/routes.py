@@ -737,3 +737,39 @@ async def export_logs(
         "count": len(data),
         "interactions": data
     }
+
+
+@router.get("/sync-metrics")
+async def sync_db_metrics(
+    interaction_logger: InteractionLogger = Depends(get_interaction_logger)
+):
+    """Sync database stats to Prometheus gauges.
+    
+    This endpoint reads from SQLite and updates Prometheus Gauge metrics,
+    so Grafana dashboards show accurate historical data from the database.
+    
+    Call this endpoint before scraping /metrics, or configure Prometheus
+    to scrape this endpoint first.
+    """
+    try:
+        # Get stats from database
+        stats = await interaction_logger.get_analytics_summary()
+        
+        # Update Prometheus Gauge metrics
+        from app.core.metrics import update_db_metrics
+        update_db_metrics(stats)
+        
+        return {
+            "status": "ok",
+            "synced": True,
+            "stats_summary": {
+                "total_queries": stats.get("legacy_analytics", {}).get("total_queries", 0),
+                "avg_confidence": round(stats.get("production_stats", {}).get("avg_confidence", 0) * 100, 1),
+                "cache_hit_rate": stats.get("cache_stats", {}).get("cache_hit_rate", 0),
+                "feedback_helpful": stats.get("feedback_stats", {}).get("thumbs_up", 0),
+                "feedback_not_helpful": stats.get("feedback_stats", {}).get("thumbs_down", 0)
+            }
+        }
+    except Exception as e:
+        logger.error(f"Failed to sync db metrics: {e}")
+        return {"status": "error", "message": str(e)}
