@@ -51,6 +51,42 @@ cache_misses_total = Counter(
     registry=registry
 )
 
+# Quality metrics
+INTENT_CONFIDENCE = Histogram(
+    'intent_confidence',
+    'Confidence score distribution by intent',
+    ['intent'],
+    buckets=[0.1, 0.3, 0.5, 0.7, 0.85, 0.95, 1.0],
+    registry=registry
+)
+
+EMPTY_RESPONSES = Counter(
+    'empty_responses_total',
+    'Empty or fallback responses',
+    registry=registry
+)
+
+# ✅ NEW: Cost tracking metrics for operational visibility
+token_usage_total = Counter(
+    'token_usage_total',
+    'Total tokens consumed',
+    ['model', 'type'],  # type: prompt or completion
+    registry=registry
+)
+
+api_cost_dollars = Counter(
+    'api_cost_dollars_total',
+    'Total estimated API cost in dollars',
+    ['service'],  # groq, embedding, etc.
+    registry=registry
+)
+
+cache_savings_dollars = Counter(
+    'cache_savings_dollars_total',
+    'Cost saved by cache hits (estimated)',
+    registry=registry
+)
+
 # Active connections
 active_connections = Gauge(
     'active_connections',

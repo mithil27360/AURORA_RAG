@@ -539,6 +539,14 @@ def setup_middleware(app):
     # Error handling
     app.add_middleware(ErrorHandlingMiddleware)
     
+    # Rate Limiting (inner - processes request early)
+    if settings.rate_limit.enabled:
+        app.add_middleware(
+            RateLimitMiddleware,
+            requests_per_minute=settings.rate_limit.requests_per_minute,
+            burst_size=settings.rate_limit.burst
+        )
+    
     # Timing (track timing after error handling)
     app.add_middleware(TimingMiddleware)
     

@@ -45,7 +45,7 @@ class LLMConfig(BaseModel):
     temperature: float = Field(default=0.3, ge=0.0, le=2.0)
     max_tokens: int = Field(default=1000, ge=100, le=4096)
     top_p: float = Field(default=0.9, ge=0.0, le=1.0)
-    timeout_seconds: float = Field(default=30.0, ge=5.0, le=120.0)
+    timeout_seconds: float = Field(default=90.0, ge=5.0, le=120.0)
     max_retries: int = Field(default=3, ge=0, le=10)
 
 
@@ -112,6 +112,15 @@ class LoggingConfig(BaseModel):
     format: str = "json"  # "json" or "text"
 
 
+class OptimizationConfig(BaseModel):
+    """Latency optimization configuration."""
+    latency_mode: str = "turbo"  # "normal" or "turbo"
+    enable_reranking: bool = False  # Disabled by default in Turbo
+    enable_streaming: bool = True   # Enabled by default in Turbo
+    Turbo_top_k: int = 3
+
+
+
 # =============================================================================
 # MAIN SETTINGS CLASS
 # =============================================================================
@@ -141,7 +150,9 @@ class Settings(BaseSettings):
     security: SecurityConfig = SecurityConfig()
     sync: SyncConfig = SyncConfig()
     abuse: AbuseConfig = AbuseConfig()
+    abuse: AbuseConfig = AbuseConfig()
     logging: LoggingConfig = LoggingConfig()
+    optimization: OptimizationConfig = OptimizationConfig()
 
     # Credentials (required)
     GROQ_API_KEY: str = Field(default="")

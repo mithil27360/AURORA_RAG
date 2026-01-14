@@ -52,10 +52,35 @@ async def lifespan(app: FastAPI):
     # Warm up cache for instant responses
     await cache_service.warm_up_semantic(COMMON_QNA)
     
+    # Only schedule sync on primary worker using Redis distributed lock
+    # This ensures exactly one worker handles scheduled syncs across all processes
+    import os
+    worker_pid = os.getpid()
+    
     if settings.AUTO_SYNC_ENABLED:
-        asyncio.create_task(_initial_sync(sheets, vector))
-        asyncio.create_task(_periodic_sync_scheduler(sheets, vector))
-        logger.info(f"Auto-sync enabled: interval={settings.SYNC_INTERVAL_MINUTES}m")
+        try:
+            # Try to acquire distributed lock in Redis (expires after 10 minutes)
+            lock_key = "sync_scheduler_lock"
+            lock_acquired = await redis_client.set(
+                lock_key,
+                str(worker_pid),
+                ex=600,  # 10 minutes expiry (2x sync interval for safety)
+                nx=True  # Only set if not exists
+            )
+            
+            if lock_acquired:
+                asyncio.create_task(_initial_sync(sheets, vector))
+                asyncio.create_task(_periodic_sync_scheduler(sheets, vector, redis_client, lock_key))
+                logger.info(f"Auto-sync ENABLED on primary worker (PID {worker_pid}): interval={settings.SYNC_INTERVAL_MINUTES}m")
+            else:
+                # Another worker holds the lock
+                lock_holder = await redis_client.get(lock_key)
+                logger.info(f"Auto-sync DISABLED on secondary worker (PID {worker_pid}). Primary is PID {lock_holder}")
+        except Exception as e:
+            # Fallback: if Redis fails, proceed (better to have duplicate syncs than none)
+            logger.warning(f"Redis lock failed, proceeding with sync anyway: {e}")
+            asyncio.create_task(_initial_sync(sheets, vector))
+            asyncio.create_task(_periodic_sync_scheduler(sheets, vector, redis_client, lock_key))
 
     yield
     
@@ -92,11 +117,23 @@ async def _initial_sync(sheets, vector):
         logger.error(f"Initial sync failed: {e}")
 
 
-async def _periodic_sync_scheduler(sheets, vector):
-    """Background scheduler for periodic data refresh."""
+async def _periodic_sync_scheduler(sheets, vector, redis_client=None, lock_key=None):
+    """Background scheduler for periodic data refresh with distributed lock renewal."""
+    import os
+    worker_pid = os.getpid()
     while True:
         try:
             await asyncio.sleep(settings.SYNC_INTERVAL_MINUTES * 60)
+            
+            # Renew lock before syncing (if we're using locks)
+            if redis_client and lock_key:
+                try:
+                    # Fix: Access underlying redis client if using wrapper
+                    client = redis_client.redis if hasattr(redis_client, "redis") else redis_client
+                    await client.expire(lock_key, 600)
+                    logger.debug(f"Lock renewed by worker {worker_pid}")
+                except Exception as e:
+                    logger.warning(f"Failed to renew lock: {e}")
             
             logger.info("Periodic sync started...")
             try:

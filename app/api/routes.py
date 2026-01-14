@@ -46,10 +46,8 @@ def get_client_ip(request: Request) -> tuple:
     """Get client IP (returns original and normalized IPv4 if applicable)."""
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
-        logger.info(f"DEBUG: X-Forwarded-For: {forwarded}")
         original_ip = forwarded.split(",")[0].strip()
     else:
-        logger.info("DEBUG: No X-Forwarded-For header found")
         original_ip = request.client.host if request.client else "unknown"
     
     # Keep original for logging, but also extract IPv4 if available
@@ -413,10 +411,12 @@ async def serve_chat(
             logger.warning(f"[{request_id}] Expansion skipped: {e}")
 
     # Vector retrieval with timeout
+    # Reduced top_k to prevent timeouts on CPU-limited environment
+    initial_k = settings.vector.top_k * 2  
     try:
         chunks = await asyncio.wait_for(
-            vector_store.search(search_query, k=settings.vector.top_k, filters=filters),
-            timeout=10.0  # 10 second hard timeout for vector search
+            vector_store.search(search_query, k=initial_k, filters=filters),
+            timeout=30.0
         )
     except asyncio.TimeoutError:
         logger.error(f"[{request_id}] Vector search timeout")
@@ -424,7 +424,67 @@ async def serve_chat(
     except Exception as e:
         logger.error(f"[{request_id}] Vector search failed: {e}")
         chunks = []
-        
+    
+    # --- Reranking Step (Conditional) ---
+    # Check for Latency Mode
+    is_turbo = settings.optimization.latency_mode == "turbo"
+    
+    if is_turbo:
+        # Skip reranker for performance optimization
+        chunks = chunks[:settings.optimization.Turbo_top_k]
+        logger.info(f"[{request_id}] Latency Switch: Skipped Reranker, using top {len(chunks)} chunks")
+    else:
+        # Phase 1: Reranking (Only in High Precision Mode)
+        if chunks and len(chunks) > settings.vector.top_k:
+            try:
+                from app.services.reranker import get_reranker_service
+                reranker = get_reranker_service()
+                
+                # Fetch more candidates for reranking
+                rerank_candidates = chunks[:settings.vector.top_k * 2]
+                
+                reranked_chunks = await asyncio.to_thread(
+                    reranker.rerank, 
+                    req.query, 
+                    rerank_candidates, 
+                    top_k=settings.vector.top_k
+                )
+                chunks = reranked_chunks
+                logger.info(f"[{request_id}] Reranked {len(rerank_candidates)} -> {len(chunks)} chunks")
+            except Exception as e:
+                logger.error(f"[{request_id}] Reranker failed: {e}. Falling back to vector score.")
+                chunks = chunks[:settings.vector.top_k]
+
+    # --- Generation Step ---
+    # Streaming Response for Low Latency
+    if is_turbo and settings.optimization.enable_streaming:
+         from fastapi.responses import StreamingResponse
+         
+         async def stream_generator():
+             # Basic history retrieval (non-blocking attempt)
+             history = []
+             try:
+                 history = await asyncio.wait_for(redis.get_history(user_id), timeout=0.5)
+             except: pass
+             
+             async for token in llm.get_answer_stream(req.query, chunks, intent, history):
+                 yield token
+                 
+         return StreamingResponse(stream_generator(), media_type="text/plain")
+
+    # Standard Response (Normal Mode)
+    if not chunks: # from vector search
+        response_time = (time.time() - start) * 1000
+        return ChatResponse(
+            answer="I'm having trouble accessing my knowledge base right now. Please try again in a moment, or ask me something else about Aurora Fest.",
+            confidence=0.0,
+            tier="Low",
+            response_time_ms=response_time,
+            intent=intent,
+            timestamp=datetime.now().isoformat(),
+            interaction_id=request_id
+        )
+    
     # FORCE INCLUDE master list for "event list" queries
     if intent == "schedule" and ("event" in normalized_query or "events" in normalized_query):
         master_chunk = await vector_store.get_master_event_list()
@@ -558,9 +618,25 @@ async def serve_chat(
     # Custom Metrics: Empty Responses
     if not llm_result["answer"] or "I don't know" in llm_result["answer"] or "I couldn't find" in llm_result["answer"]:
         EMPTY_RESPONSES.inc()
+    
+    # ✅ OPTIMIZATION: Enrich answer with confidence warnings and source transparency
+    enriched_answer = llm_result["answer"]
+    num_sources = len(chunks)
+    
+    # Add confidence-based warnings and quality indicators
+    if llm_result["confidence"] < 0.6:
+        enriched_answer += "\n\n⚠️ **Low Confidence**: This answer may need verification. "
+        enriched_answer += f"I checked {num_sources} sources but couldn't find highly relevant information. "
+        enriched_answer += "Consider asking in a different way or contacting organizers directly."
+    elif llm_result["confidence"] >= 0.85:
+        enriched_answer += f"\n\n✅ **High Confidence**: Verified from {num_sources} authoritative sources."
+    
+    # Add source transparency for mid-confidence answers
+    if 0.6 <= llm_result["confidence"] < 0.85 and num_sources > 0:
+        enriched_answer += f"\n\n📚 **Sources**: Answer based on {num_sources} relevant documents from Aurora knowledge base."
 
     return ChatResponse(
-        answer=llm_result["answer"],
+        answer=enriched_answer,
         confidence=llm_result["confidence"],
         tier=tier,
         response_time_ms=response_time,

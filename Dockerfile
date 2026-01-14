@@ -80,14 +80,14 @@ USER aurora
 
 # Default command - production server with gunicorn
 CMD ["gunicorn", "app.main:app", \
-     "--bind", "0.0.0.0:8000", \
-     "--workers", "4", \
-     "--worker-class", "uvicorn.workers.UvicornWorker", \
-     "--timeout", "120", \
-     "--keep-alive", "5", \
-     "--access-logfile", "-", \
-     "--error-logfile", "-", \
-     "--log-level", "info"]
+    "--bind", "0.0.0.0:8000", \
+    "--workers", "2", \
+    "--worker-class", "uvicorn.workers.UvicornWorker", \
+    "--timeout", "120", \
+    "--keep-alive", "5", \
+    "--access-logfile", "-", \
+    "--error-logfile", "-", \
+    "--log-level", "info"]
 
 # -----------------------------------------------------------------------------
 # Stage 3: Development Image (Optional)
@@ -111,6 +111,6 @@ USER aurora
 
 # Development command - with hot reload
 CMD ["uvicorn", "app.main:app", \
-     "--host", "0.0.0.0", \
-     "--port", "8000", \
-     "--reload"]
+    "--host", "0.0.0.0", \
+    "--port", "8000", \
+    "--reload"]

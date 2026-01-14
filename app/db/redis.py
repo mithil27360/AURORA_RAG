@@ -35,6 +35,10 @@ class InMemoryRedis:
     async def set(self, key: str, value: str, ex: int = None):
         self.store[key] = value
 
+    async def setex(self, key: str, time: int, value: str):
+        """Set valid with expiration (mock implementation ignores time)"""
+        self.store[key] = value
+
 class RedisClient:
     def __init__(self):
         self.semantic_cache = []  # In-memory semantic cache

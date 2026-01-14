@@ -1,24 +1,49 @@
 
+
 import logging
 import time
 import asyncio
 import chromadb
 import difflib
 import re
-from chromadb.utils import embedding_functions
 from typing import List, Dict, Optional
+from functools import lru_cache
+from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
+from fastembed import TextEmbedding
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# --- FastEmbed Wrapper for ChromaDB ---
+class FastEmbedEmbeddingFunction(EmbeddingFunction):
+    def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
+        self.model = TextEmbedding(model_name=model_name, threads=1) # 1 thread per model (we handle concurrency via app)
+
+    def __call__(self, input: Documents) -> Embeddings:
+        # FastEmbed returns a generator, convert to list
+        return list(self.model.embed(input))
+
+# --------------------------------------
+
 class VectorService:
     def __init__(self):
-        self.embedding = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="all-MiniLM-L6-v2"
-        )
+        # Initialize FastEmbed (ONNX + Quantized)
+        try:
+            self.embedding = FastEmbedEmbeddingFunction()
+            logger.info("Initialized FastEmbed")
+        except Exception as e:
+            logger.error(f"FastEmbed failed, falling back to SentenceTransformers: {e}")
+            from chromadb.utils import embedding_functions
+            self.embedding = embedding_functions.SentenceTransformerEmbeddingFunction(
+                model_name="all-MiniLM-L6-v2"
+            )
+
         self.db = chromadb.PersistentClient(path=str(settings.CHROMA_PATH))
         self.active_collection_name = None
         self.collection = None
+        
+        # Concurrency Cap: Limit active embedding jobs to 3
+        self.sem = asyncio.Semaphore(3)
         
         # Initialize (Blocking ok on startup)
         self._init_collection()
@@ -46,61 +71,96 @@ class VectorService:
                 metadata={"hnsw:space": "cosine"}
             )
             logger.info(f"Created new collection: {self.active_collection_name}")
+
+    # Aggressive Caching for Query Embeddings
+    @lru_cache(maxsize=1000)
+    def _get_query_embedding(self, query: str):
+        """
+        Cache embedding for frequent queries.
+        Input must be normalized before hitting this cache to ensure hit rate.
+        """
+        return self.embedding([query])[0]
             
     async def search(self, query: str, k: int = None, filters: Dict = None):
-        """Async wrapper for search with timeout handling (Non-blocking)"""
+        """Async wrapper for search with timeout handling and concurrency cap."""
         if not self.collection:
             return []
-            
-        def _sync_search():
-            if filters:
-                 return self.collection.query(
-                    query_texts=[query], 
-                    n_results=k,
-                    where=filters
-                )
-            else:
-                return self.collection.query(query_texts=[query], n_results=k)
 
-        try:
-            # Run in thread pool with timeout
-            results = await asyncio.wait_for(
-                asyncio.to_thread(_sync_search),
-                timeout=settings.vector.timeout_seconds if hasattr(settings, 'vector') else 10.0
-            )
-        except asyncio.TimeoutError:
-            logger.error("ChromaDB search timed out", extra={"query": query[:50]})
-            return []  # Return empty, let LLM handle "no context found"
-        except Exception as e:
-            logger.error(f"ChromaDB search error: {e}")
-            return []  # Graceful degradation
-        
-        # Process results
-        processed = []
-        if results["documents"]:
-            for i, doc in enumerate(results["documents"][0]):
-                dist = results["distances"][0][i]
-                meta = results["metadatas"][0][i]
-                doc_id = results["ids"][0][i]
+        # Parse and normalize input
+        # This ensures consistent cache hits for case-insensitive matches.
+        query = query.strip().lower() if query else ""
+            
+        # asyncio.Semaphore ensures FIFO behavior for fairness.
+        async with self.sem:
+            def _sync_search():
+                # We simply pass the query text and Chroma handles the embedding using our function
+                # OPTIMIZATION: If we wanted to use our Cached Embedding, we would manually embed here.
+                # Since Chroma's .query() takes string OR embedding, let's use our cache!
                 
-                # Similarity conversion
-                similarity = max(0.0, 1.0 - (dist / 2.0))
+                query_vec = self._get_query_embedding(query)
                 
-                if similarity >= settings.vector.confidence_threshold:
-                    processed.append({
-                        "text": doc,
-                        "score": similarity,
-                        "distance": dist,
-                        "id": doc_id,
-                        "meta": meta
-                    })
+                if filters:
+                     return self.collection.query(
+                        query_embeddings=[query_vec], 
+                        n_results=k,
+                        where=filters
+                    )
+                else:
+                    return self.collection.query(query_embeddings=[query_vec], n_results=k)
+
+            try:
+                # Run in thread pool with timeout
+                results = await asyncio.wait_for(
+                    asyncio.to_thread(_sync_search),
+                    timeout=settings.vector.timeout_seconds if hasattr(settings, 'vector') else 10.0
+                )
+            except asyncio.TimeoutError:
+                logger.error("ChromaDB search timed out", extra={"query": query[:50]})
+                return []  # Return empty, let LLM handle "no context found"
+            except Exception as e:
+                if "does not exist" in str(e):
+                    logger.warning(f"Collection missing during search, refreshing: {e}")
+                    self._init_collection()
+                    # Retry once
+                    try:
+                         results = await asyncio.wait_for(
+                            asyncio.to_thread(_sync_search),
+                            timeout=settings.vector.timeout_seconds if hasattr(settings, 'vector') else 10.0
+                        )
+                    except Exception as retry_err:
+                        logger.error(f"Search retry failed: {retry_err}")
+                        return []
+                else:
+                    logger.error(f"ChromaDB search error: {e}")
+                    return []  # Graceful degradation
+            
+            # Process results
+            if results["documents"]:
+                for i, doc in enumerate(results["documents"][0]):
+                    dist = results["distances"][0][i]
+                    meta = results["metadatas"][0][i]
+                    doc_id = results["ids"][0][i]
+                    
+                    # Similarity conversion
+                    similarity = max(0.0, 1.0 - (dist / 2.0))
+                    
+                    if similarity >= settings.vector.confidence_threshold:
+                        processed.append({
+                            "text": doc,
+                            "score": similarity,
+                            "distance": dist,
+                            "id": doc_id,
+                            "meta": meta
+                        })
                     
         return sorted(processed, key=lambda x: x["score"], reverse=True)
 
     async def get_master_event_list(self) -> Dict:
         """Retrieve the master event list chunk directly."""
         if not self.collection:
-            return None
+            self._init_collection()
+            if not self.collection:
+                return None
             
         try:
             result = await asyncio.to_thread(
@@ -115,7 +175,23 @@ class VectorService:
                     "meta": result["metadatas"][0] if result["metadatas"] else {}
                 }
         except Exception as e:
-            logger.error(f"Failed to fetch master list: {e}")
+            if "does not exist" in str(e):
+                logger.warning(f"Collection missing during master fetch, refreshing: {e}")
+                self._init_collection()
+                # Retry once
+                try:
+                    result = await asyncio.to_thread(self.collection.get, ids=["master_event_list"])
+                    if result and result["documents"]:
+                        return {
+                            "text": result["documents"][0],
+                            "score": 1.0,
+                            "id": "master_event_list",
+                            "meta": result["metadatas"][0] if result["metadatas"] else {}
+                        }
+                except Exception as retry_err:
+                    logger.error(f"Master fetch retry failed: {retry_err}")
+            else:
+                logger.error(f"Failed to fetch master list: {e}")
         return None
 
     async def fuzzy_search_event(self, query: str) -> List[str]:
@@ -204,7 +280,10 @@ class VectorService:
             self._cleanup_old()
             
         except Exception as e:
-            logger.error(f"Update failed: {e}")
+            if "does not exist" in str(e):
+                logger.debug(f"Collection sync race condition (expected): {e}")
+            else:
+                logger.error(f"Update failed: {e}")
 
     def _cleanup_old(self):
         """Keep last 3 versions"""
@@ -213,8 +292,14 @@ class VectorService:
         aurora_cols.sort(key=lambda x: int(x.split("_")[-1]), reverse=True)
         
         for old_name in aurora_cols[3:]:
-            self.db.delete_collection(old_name)
-            logger.info(f"Deleted old collection: {old_name}")
+            try:
+                self.db.delete_collection(old_name)
+                logger.info(f"Deleted old collection: {old_name}")
+            except Exception as e:
+                if "does not exist" in str(e):
+                    logger.debug(f"Collection already deleted: {old_name}")
+                else:
+                    logger.error(f"Unexpected deletion error: {e}")
 
     def _chunk_events(self, events: List[Dict]) -> List[Dict]:
         """Convert events to RAG chunks with master list for 'all events' queries.

@@ -1,0 +1,119 @@
+groups:
+  - name: aurora_alerts
+    interval: 30s
+    rules:
+      # ===== Availability SLA Alerts =====
+      - alert: HighErrorRate
+        expr: (sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Error rate above 5% (SLA violation)"
+          description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes. SLA target: <1%"
+          action: "Check logs: docker logs aurora-chatbot --tail 100"
+      
+      - alert: ServiceDown
+        expr: up{job="aurora-chatbot"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Aurora chatbot is DOWN"
+          description: "Service has been unavailable for 1+ minutes"
+          action: "Restart: docker compose -f docker-compose.prod.yml restart aurora-chatbot"
+      
+      # ===== Performance SLA Alerts =====
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(chat_response_time_ms_bucket[5m])) > 3000
+        for: 10m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "p95 latency above 3 seconds (SLA: <1.5s)"
+          description: "95th percentile response time is {{ $value }}ms for the last 10 minutes"
+          action: "Check system resources: docker stats aurora-chatbot"
+      
+      - alert: VeryHighLatency
+        expr: histogram_quantile(0.95, rate(chat_response_time_ms_bucket[5m])) > 5000
+        for: 5m
+        labels:
+          severity: critical
+          category: performance
+        annotations:
+          summary: "CRITICAL: p95 latency above 5 seconds"
+          description: "Users experiencing severe delays: {{ $value }}ms"
+          action: "Immediate investigation required"
+      
+      # ===== Resource Alerts =====
+      - alert: HighMemoryUsage
+        expr: (container_memory_usage_bytes{name="aurora-chatbot"} / container_spec_memory_limit_bytes{name="aurora-chatbot"}) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          category: resources
+        annotations:
+          summary: "Container memory usage above 85%"
+          description: "Memory at {{ $value | humanizePercentage }} of limit. Risk of OOM"
+          action: "Consider increasing memory limit in docker-compose.prod.yml"
+      
+      - alert: HighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total{name="aurora-chatbot"}[5m]) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          category: resources
+        annotations:
+          summary: "CPU usage sustained above 80%"
+          description: "Container using {{ $value | humanizePercentage }} CPU"
+          action: "Check for infinite loops or consider horizontal scaling"
+      
+      # ===== Quality Alerts =====
+      - alert: LowCacheHitRate
+        expr: (sum(rate(cache_hits_total[15m])) / (sum(rate(cache_hits_total[15m])) + sum(rate(cache_misses_total[15m])))) < 0.6
+        for: 15m
+        labels:
+          severity: info
+          category: optimization
+        annotations:
+          summary: "Cache hit rate below 60% (target: 85%+)"
+          description: "Only {{ $value | humanizePercentage }} of queries served from cache"
+          action: "Review cache warmup strategy and expiry times"
+      
+      - alert: HighEmptyResponseRate
+        expr: rate(empty_responses_total[10m]) / rate(chat_requests_total[10m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          category: quality
+        annotations:
+          summary: "High 'I don't know' response rate (>10%)"
+          description: "{{ $value | humanizePercentage }} of queries returning empty/fallback responses"
+          action: "Review knowledge base coverage and query patterns"
+      
+      # ===== Cost Alerts =====
+      - alert: HighTokenUsage
+        expr: rate(token_usage_total[1h]) > 100000
+        for: 1h
+        labels:
+          severity: info
+          category: cost
+        annotations:
+          summary: "Token consumption rate elevated"
+          description: "Using {{ $value }} tokens/hour. Daily cost projection: high"
+          action: "Check for expensive queries or prompt optimization opportunities"
+      
+      # ===== Redis Alerts =====
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: dependency
+        annotations:
+          summary: "Redis cache unavailable"
+          description: "Falling back to in-memory cache. Performance degraded"
+          action: "Check redis container: docker logs aurora-redis"

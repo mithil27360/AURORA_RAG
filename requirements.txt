@@ -11,6 +11,7 @@ pydantic-settings>=2.1.0
 # RAG Components
 chromadb>=0.4.0
 sentence-transformers>=2.2.0
+fastembed>=0.2.0
 groq>=0.4.0
 
 # Google Sheets Integration
@@ -64,3 +65,4 @@ black>=24.1.0
 isort>=5.13.0
 mypy>=1.8.0
 prometheus-fastapi-instrumentator>=7.0.0
+sentence-transformers>=2.2.0

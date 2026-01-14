@@ -115,3 +115,6 @@ docker-compose.prod.yml
 *.tar.gz
 *.tar
 aurora-image.tar.gz
+
+# Documentation (All technical documentation - kept locally only)
+docs/
