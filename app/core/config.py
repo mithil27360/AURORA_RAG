@@ -116,7 +116,7 @@ class OptimizationConfig(BaseModel):
     """Latency optimization configuration."""
     latency_mode: str = "turbo"  # "normal" or "turbo"
     enable_reranking: bool = False  # Disabled by default in Turbo
-    enable_streaming: bool = True   # Enabled by default in Turbo
+    enable_streaming: bool = False   # Disabled by default in Turbo
     Turbo_top_k: int = 3
 
 

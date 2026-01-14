@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)
 # --- FastEmbed Wrapper for ChromaDB ---
 class FastEmbedEmbeddingFunction(EmbeddingFunction):
     def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
-        self.model = TextEmbedding(model_name=model_name, threads=1) # 1 thread per model (we handle concurrency via app)
+        # Use 2 threads per embedding for better CPU utilization on multi-core systems
+        self.model = TextEmbedding(model_name=model_name, threads=2)
 
     def __call__(self, input: Documents) -> Embeddings:
         # FastEmbed returns a generator, convert to list
@@ -42,8 +43,8 @@ class VectorService:
         self.active_collection_name = None
         self.collection = None
         
-        # Concurrency Cap: Limit active embedding jobs to 3
-        self.sem = asyncio.Semaphore(3)
+        # Concurrency Cap: Limit active embedding jobs to 4 (N_CORES * 2)
+        self.sem = asyncio.Semaphore(4)
         
         # Initialize (Blocking ok on startup)
         self._init_collection()
@@ -57,10 +58,9 @@ class VectorService:
             # Sort by timestamp (Aurora_v_TIMESTAMP)
             aurora_cols.sort(key=lambda x: int(x.split("_")[-1]), reverse=True)
             self.active_collection_name = aurora_cols[0]
-            self.collection = self.db.get_collection(
-                name=self.active_collection_name, 
-                embedding_function=self.embedding
-            )
+            # Do not pass embedding_function to avoid conflict with persisted config
+            # We handle embedding manually at query time via _get_query_embedding
+            self.collection = self.db.get_collection(name=self.active_collection_name)
             logger.info(f"Loaded existing collection: {self.active_collection_name} ({self.collection.count()} docs)")
         else:
             # First run
@@ -135,6 +135,7 @@ class VectorService:
                     return []  # Graceful degradation
             
             # Process results
+            processed = []
             if results["documents"]:
                 for i, doc in enumerate(results["documents"][0]):
                     dist = results["distances"][0][i]
@@ -480,12 +481,16 @@ Certificate: {ev.get('certificate_offered', 'No')}"""
         added_contacts = set()  # Track to avoid duplicates
         
         for event in events:
-            name = event.get("event_name", "Unknown").strip()
-            day = event.get("day_num", "1")
-            etype = event.get("event_type", "Event")
+            start_date = event.get('start_date')
+            start_time = event.get('start_time')
+            end_time = event.get('end_time')
+            venue = event.get('venue')
+            day_num = event.get('day_num')
+            event_name = event.get('event_name', 'Unknown Event')
             
-            # Sanitize dates (Fix common 2055 typo)
-            sdate_str = str(event.get('start_date', '')).replace('2055', '2025')
+            # Use raw start_date as string without sanitization (preserves 2055)
+            sdate_str = str(event.get('start_date', ''))
+            sdate_str = str(event.get('start_date', ''))
             
             # Calculate actual date based on Day number
             # Default to sdate, but try to offset if day > 1

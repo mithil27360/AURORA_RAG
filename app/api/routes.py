@@ -302,7 +302,7 @@ async def serve_chat(
     # Intent classification
     query_lower = req.query.lower()
     intent = "general"
-    if any(x in query_lower for x in ["schedule", "when", "time", "date", "calendar", "event", "events"]):
+    if any(x in query_lower for x in ["schedule", "when", "time", "date", "calendar", "event", "events", "clash", "conflict", "overlap"]):
         intent = "schedule"
     elif any(x in query_lower for x in ["where", "venue", "location", "place", "room"]):
         intent = "venue"
@@ -485,8 +485,9 @@ async def serve_chat(
             interaction_id=request_id
         )
     
-    # FORCE INCLUDE master list for "event list" queries
-    if intent == "schedule" and ("event" in normalized_query or "events" in normalized_query):
+    # FORCE INCLUDE master list for "event list" or "conflict/clash" queries
+    # This is critical for LLM to see the full timeline to detect overlapping events
+    if intent == "schedule" and any(x in normalized_query for x in ["event", "events", "clash", "conflict", "overlap", "all", "every"]):
         master_chunk = await vector_store.get_master_event_list()
         if master_chunk:
             # Avoid duplicate if it was already retrieved
@@ -619,21 +620,7 @@ async def serve_chat(
     if not llm_result["answer"] or "I don't know" in llm_result["answer"] or "I couldn't find" in llm_result["answer"]:
         EMPTY_RESPONSES.inc()
     
-    # ✅ OPTIMIZATION: Enrich answer with confidence warnings and source transparency
     enriched_answer = llm_result["answer"]
-    num_sources = len(chunks)
-    
-    # Add confidence-based warnings and quality indicators
-    if llm_result["confidence"] < 0.6:
-        enriched_answer += "\n\n⚠️ **Low Confidence**: This answer may need verification. "
-        enriched_answer += f"I checked {num_sources} sources but couldn't find highly relevant information. "
-        enriched_answer += "Consider asking in a different way or contacting organizers directly."
-    elif llm_result["confidence"] >= 0.85:
-        enriched_answer += f"\n\n✅ **High Confidence**: Verified from {num_sources} authoritative sources."
-    
-    # Add source transparency for mid-confidence answers
-    if 0.6 <= llm_result["confidence"] < 0.85 and num_sources > 0:
-        enriched_answer += f"\n\n📚 **Sources**: Answer based on {num_sources} relevant documents from Aurora knowledge base."
 
     return ChatResponse(
         answer=enriched_answer,
