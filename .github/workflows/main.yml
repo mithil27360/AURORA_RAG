@@ -18,9 +18,15 @@ jobs:
         
       - name: Debug Secrets Presence
         run: |
-          if [ -z "$SSH_KEY" ]; then echo "❌ FATAL: SSH_KEY is NOT set!"; else echo "✅ SSH_KEY is detected."; fi
-          if [ -z "$SSH_HOST" ]; then echo "❌ FATAL: SSH_HOST is NOT set!"; else echo "✅ SSH_HOST is detected."; fi
-          if [ -z "$SSH_USERNAME" ]; then echo "❌ FATAL: SSH_USERNAME is NOT set!"; else echo "✅ SSH_USERNAME is detected."; fi
+          FAILED=0
+          if [ -z "$SSH_KEY" ]; then echo "❌ FATAL: SSH_KEY is NOT set!"; FAILED=1; else echo "✅ SSH_KEY is detected."; fi
+          if [ -z "$SSH_HOST" ]; then echo "❌ FATAL: SSH_HOST is NOT set!"; FAILED=1; else echo "✅ SSH_HOST is detected."; fi
+          if [ -z "$SSH_USERNAME" ]; then echo "❌ FATAL: SSH_USERNAME is NOT set!"; FAILED=1; else echo "✅ SSH_USERNAME is detected."; fi
+          
+          if [ $FAILED -eq 1 ]; then
+            echo "::error::One or more required secrets are missing. Please add SSH_KEY, SSH_HOST, and SSH_USERNAME to GitHub Secrets."
+            exit 1
+          fi
 
       - name: Deploy to DigitalOcean
         if: env.SSH_KEY != ''
