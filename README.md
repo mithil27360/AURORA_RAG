@@ -5,6 +5,8 @@ A high-concurrency Retrieval Augmented Generation (RAG) system built for the IST
 ## Overview
 This project is an event assistant chatbot that answers queries about schedules, workshops, and hackathons. It is engineered to handle "thundering herd" traffic spikes during festival events without crashing or timing out.
 
+**Current Status**: Stable v3.0 (Production Ready)
+
 Unlike standard RAG implementations, this system is optimized for **throughput** and **latency** using:
 - **FastEmbed (ONNX)**: Quantized embedding generation (4x faster than standard PyTorch).
 - **Request Queuing**: Application-level semaphores to prevent CPU thrashing under load.
