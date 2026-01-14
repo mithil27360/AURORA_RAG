@@ -30,8 +30,8 @@ The system includes built-in monitoring tools (Prometheus + Grafana) enabled in 
 | Component | URL (Local) | Credentials | Description |
 | :--- | :--- | :--- | :--- |
 | **Chat UI** | `http://localhost:8000` | N/A | Main user interface |
-| **Admin Dashboard** | `http://localhost:8000/dashboard` | `admin` / `aurora2025` | Internal analytics & logs |
-| **Grafana** | `https://localhost:3000` | `admin` / `EXPELLIARMUS@ISTE` | Visual metrics & system health |
+| **Admin Dashboard** | `http://localhost:8000/dashboard` | `admin` / *(See .env)* | Internal analytics & logs |
+| **Grafana** | `https://localhost:3000` | `admin` / *(See .env)* | Visual metrics & system health |
 | **Prometheus** | `https://localhost:9090` | N/A | Time-series data collection |
 
 > **Note**: Grafana and Prometheus run over HTTPS with self-signed certificates. You may need to bypass the browser warning in local development.
