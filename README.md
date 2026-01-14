@@ -3,7 +3,7 @@
 A high-concurrency Retrieval Augmented Generation (RAG) system built for the ISTE Aurora 2025 festival. Designed to run on limited hardware (2 vCPU) while supporting 100+ concurrent users with sub-second latency.
 
 ## Overview
-This project is an event assistant chatbot that answers queries about schedules, workshops, and hackathons. It is engineered to handle "thundering herd" traffic spikes during festival events without crashing or timing out.
+This project is an event assistant chatbot that answers queries about schedules, workshops, and hackathons. It is engineered to handle "thundering herd" traffic spikes during fest  without crashing or timing out.
 
 **Current Status**: Stable v4.0.1
 
