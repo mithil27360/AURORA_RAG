@@ -401,6 +401,40 @@ async def serve_chat(
     except Exception as e:
         logger.warning(f"Fuzzy search failed: {e}")
 
+    # --- Static Content Filter Forcing (Fix for retreival issues) ---
+    if not filters:
+        q_lower = req.query.lower()
+        
+        # 1. Sponsors
+        if "sponsor" in q_lower or "partner" in q_lower:
+            filters = {"topic": "sponsors"}
+            logger.info(f"[{request_id}] Static Filter Forced: Sponsors")
+            
+        # 2. Contact / Reach out
+        elif "contact" in q_lower or "reach" in q_lower or "email" in q_lower or "phone" in q_lower:
+             filters = {"type": "contact"}
+             logger.info(f"[{request_id}] Static Filter Forced: Contact")
+             
+        # 3. Team / Board
+        elif "team" in q_lower or "board" in q_lower or "created" in q_lower or "built" in q_lower or "developer" in q_lower:
+             filters = {"topic": "team"}
+             logger.info(f"[{request_id}] Static Filter Forced: Team")
+
+        # 4. Speaker
+        elif "speaker" in q_lower or "aparna" in q_lower or "barclays" in q_lower:
+             filters = {"type": "speaker"}
+             logger.info(f"[{request_id}] Static Filter Forced: Speaker")
+
+        # 5. CTF
+        elif "ctf" in q_lower or "capture the flag" in q_lower:
+             filters = {"topic": "ctf"}
+             logger.info(f"[{request_id}] Static Filter Forced: CTF")
+             
+        # 6. Hackathon (DevSprint)
+        elif "hackathon" in q_lower or "devsprint" in q_lower or "hack" in q_lower:
+             filters = {"topic": "devsprint"}
+             logger.info(f"[{request_id}] Static Filter Forced: Hackathon")
+    
     # --- Query Expansion (Dynamic) ---
     if not filters: # Only expand if no specific event found via fuzzy search
         try:
