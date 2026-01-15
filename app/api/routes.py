@@ -313,7 +313,7 @@ async def serve_chat(
 
     # User Identification & Greeting Logic
     # User Identification: Prioritize X-Session-ID header (UUID v4) for robustness behind proxies
-    session_header = req.headers.get("X-Session-ID")
+    session_header = request.headers.get("X-Session-ID")
     if session_header and len(session_header) > 10: # Basic validation
         user_id = session_header
     else:
