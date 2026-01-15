@@ -342,6 +342,63 @@ class VectorService:
                 "text": """AURORA CHIEF GUEST: The Chief Guest for Aurora Fest 2026 inauguration ceremony is yet to be officially announced. Please check ISTE Manipal's social media handles and official website for updates. We usually invite prominent industry leaders or scientists.""",
                 "metadata": {"type": "about", "topic": "guest"}
             },
+            # ===== SPEAKER SESSION =====
+            {
+                "id": "speaker_aparna_debnath",
+                "text": """SPEAKER SESSION: Career beyond the syllabus - Aparna Debnath. She is Assistant Vice President at Barclays, Lead Business Analyst, and was Featured at Times Square NY. This session helps students understand how careers in finance and technology actually evolve beyond college. Learn how engineers transition into global financial institutions, explore business-technology hybrid roles like Business Analyst and Product Manager, and understand why communication, confidence, and adaptability accelerate long-term career growth. Venue: Library Auditorium. Date: 19th January 2026. Time: 6pm onwards.""",
+                "metadata": {"type": "speaker", "topic": "career", "date": "2026-01-19"}
+            },
+            # ===== AURORA CTF =====
+            {
+                "id": "aurora_ctf_details",
+                "text": """AURORA CTF: AuroraCTF is a 30-hour Capture The Flag cybersecurity competition. This isn't just a CTF; it's a test of dominance. Challenges include Cryptography, Reverse Engineering, and Web Exploitation. Dates: 21st January 6:00 PM to 22nd January 11:59 PM (2026). Prize Pool: 1st Place ₹4,000, 2nd Place ₹2,500, 3rd Place ₹1,500. Objective: pwn everything.""",
+                "metadata": {"type": "competition", "topic": "ctf", "date": "2026-01-21"}
+            },
+            # ===== DEVSPRINT HACKATHON =====
+            {
+                "id": "devsprint_hackathon",
+                "text": """DEVSPRINT HACKATHON: Learn. Build. Compete. DevSprint is a 10-hour coding marathon (12 hours total event time from 7:00 AM to 7:00 PM on 25th January 2026). The day includes coding time, mini-games, and a final presentation session. Team size: 2-5 participants. Prize Pool: 1st Place ₹8,000, 2nd Place ₹5,000, 3rd Place ₹3,000. Certificates of participation for all participants. Teams must bring their own laptops; venue provides internet. Mini-games can slightly boost your score but preference is given to your app. Registration is on the AURORA website.""",
+                "metadata": {"type": "hackathon", "topic": "devsprint", "date": "2026-01-25"}
+            },
+            # ===== SPONSORS =====
+            {
+                "id": "aurora_sponsors",
+                "text": """AURORA SPONSORS: Title Sponsor - Global Degrees (premier partner committed to excellence and innovation, supporting the next generation of tech leaders). Co-Powered By - Aniche Studios (represents unique style and quality, celebrating creativity and individuality). Associate Sponsors - Burger Shack (juicy burgers with secret sauce and fresh ingredients in Manipal), Cafe Story (cozy ambiance with premium coffee in Manipal), Noch (premium experiences and student support), SAB Consultancy Services (Student Advisory Board - apex student body of MIT bridging gap between administration and students).""",
+                "metadata": {"type": "about", "topic": "sponsors"}
+            },
+            # ===== CONTACT INFO =====
+            {
+                "id": "aurora_contact",
+                "text": """AURORA CONTACT: Email: aurora.istemanipal@gmail.com. Phone: +91-8809795723. Location: Manipal, Udupi, Karnataka, India. For event-specific queries, check the contact details on each event page or reach out to the respective club coordinators.""",
+                "metadata": {"type": "contact", "topic": "general"}
+            },
+            # ===== TEAM =====
+            {
+                "id": "aurora_team_board",
+                "text": """AURORA BOARD MEMBERS (ISTE Manipal Leadership): Abhinav Kumar, Pranav Kumar, Navaneeth Suresh, Hrithiq Gupta, Mayank Kejariwal, Pranav Kasliwal, Vasavi A Saralaya, Sonaksh Jain. These are the minds behind the magic of Aurora Fest 2026.""",
+                "metadata": {"type": "about", "topic": "team"}
+            },
+            {
+                "id": "aurora_team_dev",
+                "text": """AURORA DEV TEAM: Sumeet (Full-Stack Tester), Mohammad Arsh, Pravar Singh, Divij Manchanda, Tanseer Ahmad, Powel Lawrence Lewis, Arkadeep Das, Viraj Rahul Gupta, Prayatshu. They build and maintain the Aurora website and technical infrastructure.""",
+                "metadata": {"type": "about", "topic": "team"}
+            },
+            {
+                "id": "aurora_team_design",
+                "text": """AURORA DESIGN TEAM: Samyak Jain, Aarav Sadhu, Rohit Nema. They create the visual identity and graphics for Aurora Fest.""",
+                "metadata": {"type": "about", "topic": "team"}
+            },
+            {
+                "id": "aurora_team_ml",
+                "text": """AURORA ML TEAM: Mithil S (builds the Aurora RAG Chatbot), Bhuvi Sanga. They work on AI/ML projects and the Aurora chatbot.""",
+                "metadata": {"type": "about", "topic": "team"}
+            },
+            # ===== AURORA TIMELINE =====
+            {
+                "id": "aurora_timeline",
+                "text": """AURORA 2026 EVENT TIMELINE: 19th Jan - Speaker Session (Aparna Debnath, Career beyond the syllabus). 20th-24th Jan - Workshops (hands-on sessions led by experts). 21st-22nd Jan - AuroraCTF (30-hour CTF competition). 25th Jan - DevSprint Hackathon (12-hour coding marathon).""",
+                "metadata": {"type": "schedule", "topic": "timeline"}
+            },
         ]
         chunks.extend(static_chunks)
         
