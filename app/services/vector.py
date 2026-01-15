@@ -201,6 +201,14 @@ class VectorService:
         if not master:
             return []
         
+        # Generic terms that should NOT trigger event-specific matching
+        EXCLUDED_WORDS = {
+            'aurora', 'fest', 'iste', 'manipal', 'event', 'events', 'workshop', 'workshops',
+            'hackathon', 'hackathons', 'speaker', 'speakers', 'sponsor', 'sponsors', 
+            'team', 'contact', 'schedule', 'venue', 'registration', 'about', 'what', 'who',
+            'when', 'where', 'how', 'list', 'all', 'tell', 'give', 'details', 'info'
+        }
+        
         # Extract names from text: "1. EventName (Type) - "
         text = master.get("text", "")
         # Regex to find "1. Name (Type)" -> Capture Name
@@ -223,9 +231,10 @@ class VectorService:
         if matches:
             found.add(matches[0])
 
-        # 3. Word-based Difflib
+        # 3. Word-based Difflib (Skip generic/excluded words)
         for word in query.split():
             if len(word) < 4: continue
+            if word.lower() in EXCLUDED_WORDS: continue  # Skip generic terms
             m = difflib.get_close_matches(word, event_names, n=1, cutoff=0.6)
             if m:
                 found.add(m[0])
