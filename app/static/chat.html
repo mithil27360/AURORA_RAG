@@ -448,6 +448,19 @@
             }
         }
 
+        // Generate persistent Session ID using UUID v4
+        function getSessionId() {
+            let sessionId = localStorage.getItem('aurora_session_id');
+            if (!sessionId) {
+                sessionId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+                localStorage.setItem('aurora_session_id', sessionId);
+            }
+            return sessionId;
+        }
+
         async function send() {
             const query = q.value.trim();
             if (!query) return;
@@ -465,11 +478,14 @@
             await new Promise(resolve => setTimeout(resolve, minDelay));
 
             try {
-                // 3. Fetch from Backend with client data
+                // 3. Fetch from Backend with client data and Session ID
                 const clientData = getClientData();
                 const response = await fetch(`${API_URL}/chat`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { 
+                        "Content-Type": "application/json",
+                        "X-Session-ID": getSessionId()
+                    },
                     body: JSON.stringify({ query: query, client_data: clientData })
                 });
 
