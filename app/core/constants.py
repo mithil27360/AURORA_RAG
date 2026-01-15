@@ -159,7 +159,7 @@ class ResponseTemplate:
     """Pre-defined response templates for common scenarios."""
     
     # Greetings
-    GREETING_FIRST = "Hello! Welcome to Aurora Fest 2025. I'm here to help you with event schedules, workshops, hackathons, and registration details. How can I assist you today?"
+    GREETING_FIRST = "Hello! Welcome to Aurora Fest 2026. I'm here to help you with event schedules, workshops, hackathons, and registration details. How can I assist you today?"
     GREETING_REPEAT = "How can I help?"
     
     # Farewells

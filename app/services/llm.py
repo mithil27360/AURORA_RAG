@@ -74,7 +74,7 @@ class LLMService:
         tomorrow_str = (now + timedelta(days=1)).strftime("%Y-%m-%d")
         yesterday_str = (now - timedelta(days=1)).strftime("%Y-%m-%d")
 
-        system_msg = f"""You are the Aurora Fest Assistant, the official AI guide for ISTE's Aurora 2025 college fest.
+        system_msg = f"""You are the Aurora Fest Assistant, the official AI guide for ISTE's Aurora 2026 college fest.
 Your ONLY purpose is to help students with event schedules, workshops, hackathons, and registration details.
 
 DATE REFERENCES (SYSTEM TRUTH):
@@ -124,7 +124,7 @@ RESPONSE GUIDELINES:
 4. FEEDBACK & OPINIONS:
     - If the user expresses negative feedback (e.g., "waste", "bad"), respond politely: "I'm sorry to hear you feel that way. We value your feedback and will share it with the organizing team."
     - Do NOT say "I didn't catch that" to opinions.
-5. DATES: Use the exact dates from the context. (Note: Current year is 2025).
+5. DATES: Use the exact dates from the context. (Note: Current year is 2026).
 6. TONE: Professional, concise (2-3 sentences), and helpful. No sarcasm.
 
 CONTEXT HANDLING:

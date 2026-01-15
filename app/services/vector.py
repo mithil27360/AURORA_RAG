@@ -334,12 +334,12 @@ class VectorService:
             },
             {
                 "id": "about_identity_repo",
-                "text": """ABOUT AURORA CHATBOT: I am the Aurora Fest Assistant, an AI built to help you navigate the ISTE Aurora 2025 college fest at MIT Manipal. I can help with event schedules, registration, workshops, hackathons, and more. Aurora is organized by ISTE Manipal (Indian Society for Technical Education, Students' Chapter).""",
+                "text": """ABOUT AURORA CHATBOT: I am the Aurora Fest Assistant, an AI built to help you navigate the ISTE Aurora 2026 college fest at MIT Manipal. I can help with event schedules, registration, workshops, hackathons, and more. Aurora is organized by ISTE Manipal (Indian Society for Technical Education, Students' Chapter).""",
                 "metadata": {"type": "about", "topic": "identity"}
             },
             {
                 "id": "about_chief_guest",
-                "text": """AURORA CHIEF GUEST: The Chief Guest for Aurora Fest 2025 inauguration ceremony is yet to be officially announced. Please check ISTE Manipal's social media handles and official website for updates. We usually invite prominent industry leaders or scientists.""",
+                "text": """AURORA CHIEF GUEST: The Chief Guest for Aurora Fest 2026 inauguration ceremony is yet to be officially announced. Please check ISTE Manipal's social media handles and official website for updates. We usually invite prominent industry leaders or scientists.""",
                 "metadata": {"type": "about", "topic": "guest"}
             },
         ]
@@ -453,8 +453,8 @@ class VectorService:
             club = ev.get('club_name', '')
             
             # Sanitize dates (Fix common 2055 typo)
-            sdate = str(ev.get('start_date', '')).replace('2055', '2025')
-            edate = str(ev.get('end_date', '')).replace('2055', '2025')
+            sdate = str(ev.get('start_date', '')).replace('2055', '2026')
+            edate = str(ev.get('end_date', '')).replace('2055', '2026')
             
             overview = f"""EVENT: {name}
 Type: {ev.get('event_type', 'Event')}
