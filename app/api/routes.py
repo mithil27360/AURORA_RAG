@@ -637,15 +637,43 @@ async def refresh_kb(background_tasks: BackgroundTasks):
     sheets = get_sheets_service()
     vector = get_vector_store()
     
-    # Run in background
+    # Clear all caches FIRST so new data is served immediately
+    cache_service = get_cache_service()
+    caches_cleared = False
+    if cache_service:
+        try:
+            # Clear L1 (in-memory)
+            await cache_service.l1.clear()
+            
+            # Clear L2 (Redis) - all chat keys
+            if cache_service.l2:
+                await cache_service.l2.clear_prefix("chat:*")
+            
+            # Clear semantic cache
+            if cache_service.semantic:
+                async with cache_service.semantic._lock:
+                    cache_service.semantic._cache.clear()
+                    cache_service.semantic.stats.size = 0
+            
+            # Clear LRU embedding cache in vector service
+            vector._get_query_embedding.cache_clear()
+            
+            caches_cleared = True
+            logger.info("All caches cleared for refresh")
+        except Exception as e:
+            logger.warning(f"Cache clear failed: {e}")
+    
+    # Run KB update in background
     background_tasks.add_task(_refresh_task, sheets, vector)
     
-    return {"status": "refresh_started"}
+    return {"status": "refresh_started", "caches_cleared": caches_cleared}
 
 async def _refresh_task(sheets, vector):
     try:
         events = sheets.fetch_events()
-        await vector.update_kb(events)
+        # Force update for manual syncs (bypass safety check)
+        await vector.update_kb(events, force=True)
+        logger.info(f"KB refresh complete: {len(events)} events synced")
     except Exception as e:
         logger.error(f"Background refresh failed: {e}")
 

@@ -120,6 +120,8 @@ async def _initial_sync(sheets, vector):
 async def _periodic_sync_scheduler(sheets, vector, redis_client=None, lock_key=None):
     """Background scheduler for periodic data refresh with distributed lock renewal."""
     import os
+    from app.services.cache import get_cache_service
+    
     worker_pid = os.getpid()
     while True:
         try:
@@ -136,12 +138,38 @@ async def _periodic_sync_scheduler(sheets, vector, redis_client=None, lock_key=N
                     logger.warning(f"Failed to renew lock: {e}")
             
             logger.info("Periodic sync started...")
+            
+            # CRITICAL: Clear ALL caches BEFORE updating KB so new data is served immediately
+            cache_service = get_cache_service()
+            if cache_service:
+                try:
+                    # Clear L1 (in-memory)
+                    await cache_service.l1.clear()
+                    
+                    # Clear L2 (Redis) - all chat keys
+                    if cache_service.l2:
+                        await cache_service.l2.clear_prefix("chat:*")
+                    
+                    # Clear semantic cache
+                    if cache_service.semantic:
+                        async with cache_service.semantic._lock:
+                            cache_service.semantic._cache.clear()
+                            cache_service.semantic.stats.size = 0
+                    
+                    # Clear LRU embedding cache
+                    vector._get_query_embedding.cache_clear()
+                    
+                    logger.info("Caches cleared for periodic sync")
+                except Exception as e:
+                    logger.warning(f"Cache clear failed during periodic sync: {e}")
+            
             try:
                 events = await asyncio.wait_for(
                     asyncio.to_thread(sheets.fetch_events),
                     timeout=settings.SYNC_TIMEOUT_SECONDS
                 )
-                await vector.update_kb(events)
+                # Background sync is SAFE (force=False)
+                await vector.update_kb(events, force=False)
                 logger.info(f"Periodic sync complete: {len(events)} events")
             except asyncio.TimeoutError:
                 logger.error("Periodic sync timeout")

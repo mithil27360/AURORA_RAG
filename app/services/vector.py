@@ -232,11 +232,11 @@ class VectorService:
         
         return list(found)
 
-    async def update_kb(self, events: List[Dict]):
+    async def update_kb(self, events: List[Dict], force: bool = False):
         """Update Knowledge Base (Blue/Green) - non-blocking wrapper"""
-        await asyncio.to_thread(self._sync_update, events)
+        await asyncio.to_thread(self._sync_update, events, force)
         
-    def _sync_update(self, events: List[Dict]):
+    def _sync_update(self, events: List[Dict], force: bool = False):
         """Synchronous update logic"""
         try:
             chunks = self._chunk_events(events)
@@ -267,7 +267,8 @@ class VectorService:
             new_count = new_col.count()
             old_count = self.collection.count() if self.collection else 0
             
-            if old_count > 0 and new_count < (old_count * 0.8):
+            # Safety check: Prevent accidental massive deletion (unless forced)
+            if not force and old_count > 0 and new_count < (old_count * 0.8):
                 logger.error(f"Update Unsafe: {new_count} < 80% of {old_count}. Aborting.")
                 self.db.delete_collection(new_version)
                 return
@@ -485,64 +486,65 @@ Certificate: {ev.get('certificate_offered', 'No')}"""
             start_time = event.get('start_time')
             end_time = event.get('end_time')
             venue = event.get('venue')
-            day_num = event.get('day_num')
+            day_num = event.get('day_num', '1')
             event_name = event.get('event_name', 'Unknown Event')
+            event_type = event.get('event_type', 'Event')
             
             # Use raw start_date as string without sanitization (preserves 2055)
-            sdate_str = str(event.get('start_date', ''))
             sdate_str = str(event.get('start_date', ''))
             
             # Calculate actual date based on Day number
             # Default to sdate, but try to offset if day > 1
             final_date_str = sdate_str
             try:
-                if sdate_str and day.isdigit() and int(day) > 1:
+                day_str = str(day_num)
+                if sdate_str and day_str.isdigit() and int(day_str) > 1:
                     from datetime import datetime, timedelta
                     start_dt = datetime.strptime(sdate_str, "%Y-%m-%d")
-                    offset_dt = start_dt + timedelta(days=int(day) - 1)
+                    offset_dt = start_dt + timedelta(days=int(day_str) - 1)
                     final_date_str = offset_dt.strftime("%Y-%m-%d")
             except Exception as e:
-                logger.warning(f"Date parsing failed for {name}: {e}")
+                logger.warning(f"Date parsing failed for {event_name}: {e}")
 
             # Schedule
             if event.get("start_time"):
-                text = f"SCHEDULE: {name} ({etype}) Day {day} on {final_date_str} from {event.get('start_time', '')} to {event.get('end_time', '')}."
+                text = f"SCHEDULE: {event_name} ({event_type}) Day {day_num} on {final_date_str} from {event.get('start_time', '')} to {event.get('end_time', '')}."
                 if event.get("venue"):
                     text += f" Venue: {event.get('venue')}."
                 chunks.append({
-                    "id": f"{name}_schedule_day{day}",
+                    "id": f"{event_name}_schedule_day{day_num}",
                     "text": text,
-                    "metadata": {"event": name, "type": "schedule"}
+                    "metadata": {"event": event_name, "type": "schedule"}
                 })
             
             # Topics / Description
             topics = event.get("topics_covered") or event.get("project_description") or event.get("event_description")
             if topics:
                 chunks.append({
-                    "id": f"{name}_topics_day{day}",
-                    "text": f"**EVENT DETAILS** for {name}: {topics}",
-                    "metadata": {"event": name, "type": "description"}
+                    "id": f"{event_name}_topics_day{day_num}",
+                    "text": f"**EVENT DETAILS** for {event_name}: {topics}",
+                    "metadata": {"event": event_name, "type": "description"}
                 })
             
             # Prerequisites
             prereqs = event.get("prerequisites")
             if prereqs:
                 chunks.append({
-                    "id": f"{name}_prereqs_day{day}",
-                    "text": f"PREREQUISITES for {name}: {prereqs}",
-                    "metadata": {"event": name, "type": "rules"}
+                    "id": f"{event_name}_prereqs_day{day_num}",
+                    "text": f"PREREQUISITES for {event_name}: {prereqs}",
+                    "metadata": {"event": event_name, "type": "rules"}
                 })
             
             # Contact (deduplicated)
             contact = event.get("contact_name") or event.get("contact_mail")
-            if contact and name not in added_contacts:
-                text = f"CONTACT for {name}: {event.get('contact_name', '')}. Email: {event.get('contact_mail', '')}. Phone: {event.get('contact_phone', '')}."
+            if contact and event_name not in added_contacts:
+                text = f"CONTACT for {event_name}: {event.get('contact_name', '')}. Email: {event.get('contact_mail', '')}. Phone: {event.get('contact_phone', '')}."
                 chunks.append({
-                    "id": f"{name}_contact",
+                    "id": f"{event_name}_contact",
                     "text": text,
-                    "metadata": {"event": name, "type": "contact"}
+                    "metadata": {"event": event_name, "type": "contact"}
                 })
-                added_contacts.add(name)
+                added_contacts.add(event_name)
         
         logger.info(f"Generated {len(chunks)} chunks from {len(events)} rows ({len(unique_events)} unique events)")
         return chunks
