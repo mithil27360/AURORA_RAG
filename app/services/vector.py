@@ -372,13 +372,13 @@ class VectorService:
             # ===== SPONSORS =====
             {
                 "id": "aurora_sponsors",
-                "text": """AURORA SPONSORS: Title Sponsor - Global Degrees (premier partner committed to excellence and innovation, supporting the next generation of tech leaders). Co-Powered By - Aniche Studios (represents unique style and quality, celebrating creativity and individuality). Associate Sponsors - Burger Shack (juicy burgers with secret sauce and fresh ingredients in Manipal), Cafe Story (cozy ambiance with premium coffee in Manipal), Noch (premium experiences and student support), SAB Consultancy Services (Student Advisory Board - apex student body of MIT bridging gap between administration and students).""",
+                "text": """Who are the sponsors of Aurora? What companies sponsor Aurora Fest? AURORA SPONSORS AND PARTNERS: Title Sponsor - Global Degrees (premier partner committed to excellence and innovation, supporting the next generation of tech leaders). Co-Powered By - Aniche Studios (represents unique style and quality, celebrating creativity and individuality). Associate Sponsors - Burger Shack (juicy burgers with secret sauce and fresh ingredients in Manipal), Cafe Story (cozy ambiance with premium coffee in Manipal), Noch (premium experiences and student support), SAB Consultancy Services (Student Advisory Board - apex student body of MIT bridging gap between administration and students). These sponsors power the future of technology at Aurora Fest 2026.""",
                 "metadata": {"type": "about", "topic": "sponsors"}
             },
             # ===== CONTACT INFO =====
             {
                 "id": "aurora_contact",
-                "text": """AURORA CONTACT: Email: aurora.istemanipal@gmail.com. Phone: +91-8809795723. Location: Manipal, Udupi, Karnataka, India. For event-specific queries, check the contact details on each event page or reach out to the respective club coordinators.""",
+                "text": """How to contact ISTE? What is the contact information for Aurora Fest? AURORA CONTACT DETAILS: Email: aurora.istemanipal@gmail.com. Phone: +91-8809795723. Location: Manipal, Udupi, Karnataka, India. For event-specific queries, check the contact details on each event page or reach out to the respective club coordinators. Contact ISTE Manipal at aurora.istemanipal@gmail.com or call +91-8809795723.""",
                 "metadata": {"type": "contact", "topic": "general"}
             },
             # ===== TEAM =====
