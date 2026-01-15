@@ -135,15 +135,15 @@ services:
     ports:
       - "3000:3000" # External access
     environment:
-      - GF_SERVER_PROTOCOL=https
-      - GF_SERVER_CERT_FILE=/etc/grafana/ssl/grafana.crt
-      - GF_SERVER_CERT_KEY=/etc/grafana/ssl/grafana.key
+      - GF_SERVER_PROTOCOL=http
+      # - GF_SERVER_CERT_FILE=/etc/grafana/ssl/grafana.crt
+      # - GF_SERVER_CERT_KEY=/etc/grafana/ssl/grafana.key
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_AUTH_ANONYMOUS_ENABLED=false
       - GF_SECURITY_SECRET_KEY=${GRAFANA_SECRET_KEY:-change_this_secret_key}
-      - GF_SESSION_COOKIE_SECURE=true
+      - GF_SESSION_COOKIE_SECURE=false
       - GF_SESSION_COOKIE_SAMESITE=strict
     volumes:
       - grafana-data:/var/lib/grafana
@@ -165,7 +165,7 @@ services:
     networks:
       - aurora-network
     healthcheck:
-      test: [ "CMD", "wget", "--spider", "--no-check-certificate", "-q", "https://localhost:3000/api/health" ]
+      test: [ "CMD", "wget", "--spider", "--no-check-certificate", "-q", "http://localhost:3000/api/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
