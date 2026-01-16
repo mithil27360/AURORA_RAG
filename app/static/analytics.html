@@ -760,6 +760,7 @@
                 logsData = data.interactions || [];
                 updateLogsTable(logsData);
                 document.getElementById('logCount').textContent = `${logsData.length} interactions`;
+                applyFilters(); // Recalculate stats now that we have full data
             } catch (e) {
                 console.error('Logs error:', e);
                 document.getElementById('logsTable').innerHTML =
