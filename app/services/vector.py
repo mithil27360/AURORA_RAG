@@ -408,6 +408,27 @@ class VectorService:
                 "text": """AURORA 2026 EVENT TIMELINE: 19th Jan - Speaker Session (Aparna Debnath, Career beyond the syllabus). 20th-24th Jan - Workshops (hands-on sessions led by experts). 21st-22nd Jan - AuroraCTF (30-hour CTF competition). 25th Jan - DevSprint Hackathon (12-hour coding marathon).""",
                 "metadata": {"type": "schedule", "topic": "timeline"}
             },
+            # ===== HELP / FAQ TOPICS (Added based on user feedback) =====
+            {
+                "id": "help_payment_pending",
+                "text": """PAYMENT PENDING / TRANSACTION FAILED: If your payment status shows 'pending' or money was deducted but not reflected, please do not panic. It can take up to 24 hours for the payment gateway to synchronize status. Action: Wait for a little bit (up to 24 hours). If it still doesn't update, please contact the organizers or the technical team with your Transaction ID, or just visit the registration desk for immediate assistance.""",
+                "metadata": {"type": "help", "topic": "payment"}
+            },
+            {
+                "id": "help_edit_profile",
+                "text": """EDIT PROFILE DETAILS: Currently, you cannot edit your profile details (Name, Email, Registration Number) directly in the app once registered. If you made a mistake, please contact the ISTE Registration Desk at the venue or email aurora.istemanipal@gmail.com with your correct details.""",
+                "metadata": {"type": "help", "topic": "profile"}
+            },
+            {
+                "id": "help_venues_general",
+                "text": """WORKSHOP VENUES / LOCATIONS: The specific venue for each workshop is listed on its event detail page in the app or website. Generally, workshops are held in AB5 (Academic Block 5) or the Library. Please check the specific event card for the exact room number.""",
+                "metadata": {"type": "help", "topic": "venue"}
+            },
+            {
+                "id": "summary_ai_workshops",
+                "text": """AI ARTIFICIAL INTELLIGENCE WORKSHOPS: There are several AI-focused workshops at Aurora Fest 2026: 1. 'AI-Driven Generative Design System Using StyleGAN3' by ACM Manipal (Jan 22nd). 2. 'OpenCV Workshop' by RUGVED (Jan 24th) covering AI-driven computer vision. 3. 'Sentiment to Signal' by Finova (Jan 22nd) involves AI-based trading decisions. Check these specific events for details.""",
+                "metadata": {"type": "summary", "topic": "ai"}
+            }
         ]
         chunks.extend(static_chunks)
         

@@ -439,6 +439,21 @@ async def serve_chat(
         elif "hackathon" in q_lower or "devsprint" in q_lower or "hack" in q_lower:
              filters = {"topic": "devsprint"}
              logger.info(f"[{request_id}] Static Filter Forced: Hackathon")
+
+        # 7. Payment / Pending Transaction
+        elif "payment" in q_lower or "pending" in q_lower or "transaction" in q_lower or "money" in q_lower or "deducted" in q_lower:
+             filters = {"topic": "payment"}
+             logger.info(f"[{request_id}] Static Filter Forced: Payment")
+
+        # 8. Profile / Edit Details
+        elif "profile" in q_lower or "edit" in q_lower or "username" in q_lower or "registration number" in q_lower:
+             filters = {"topic": "profile"}
+             logger.info(f"[{request_id}] Static Filter Forced: Profile")
+
+        # 9. AI Workshops
+        elif "ai" in q_lower or "artificial intelligence" in q_lower:
+             filters = {"topic": "ai"}
+             logger.info(f"[{request_id}] Static Filter Forced: AI")
     
     # --- Query Expansion (Dynamic) ---
     if not filters: # Only expand if no specific event found via fuzzy search

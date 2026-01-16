@@ -174,7 +174,7 @@ class ResponseTemplate:
     # Errors
     ERROR_GENERIC = "I'm having trouble right now. Please try again in a moment."
     ERROR_NO_CONTEXT = "I couldn't find specific information about that in the festival guide. Could you try rephrasing your question?"
-    ERROR_UNCLEAR = "I didn't quite catch that. Could you rephrase your question?"
+    ERROR_UNCLEAR = "I'm not sure about that. I can help you with Aurora Fest schedules, workshops, events, and registration details."
     ERROR_TIMEOUT = "I'm taking too long to respond. Please try asking your question again."
     
     # Abuse
