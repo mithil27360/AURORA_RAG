@@ -980,35 +980,24 @@
         }
 
         function updateIntentChart(intentCounts) {
-            const ctx2 = document.getElementById('intentChart').getContext('2d');
-            if (intentChart) intentChart.destroy();
+            const total = Object.values(intentCounts).reduce((a, b) => a + b, 0) || 1;
+            const list = document.getElementById('intentList');
 
-            const sortedIntents = Object.entries(intentCounts).sort((a, b) => b[1] - a[1]);
-            const labels = sortedIntents.map(e => e[0]);
-            const values = sortedIntents.map(e => e[1]);
-
-            intentChart = new Chart(ctx2, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        data: values,
-                        backgroundColor: '#2563EB',
-                        borderRadius: 3,
-                        barThickness: 24
-                    }]
-                },
-                options: {
-                    indexAxis: 'y',
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { grid: { color: '#F1F5F9' }, border: { display: false }, beginAtZero: true },
-                        y: { grid: { display: false }, border: { display: false } }
-                    }
-                }
-            });
+            const entries = Object.entries(intentCounts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+            if (entries.length === 0) {
+                list.innerHTML = '<div class="empty-state">No queries recorded</div>';
+            } else {
+                list.innerHTML = entries.map(([name, count]) => {
+                    const pct = Math.round(count / total * 100);
+                    return `
+                        <div class="intent-item">
+                            <span class="intent-name">${name}</span>
+                            <div class="intent-bar"><div class="intent-bar-fill" style="width: ${pct}%"></div></div>
+                            <span class="intent-count">${count}</span>
+                        </div>
+                    `;
+                }).join('');
+            }
         }
 
         function toggleBlockedFilter() {
