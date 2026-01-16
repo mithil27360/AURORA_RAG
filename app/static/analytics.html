@@ -668,6 +668,7 @@
         let recentData = [];
         let lastUpdate = null;
         let showBlockedOnly = false;
+        let originalAnalytics = null; // Store full server-side stats
 
         // Sync Sheet Data
         async function syncSheetData() {
@@ -744,10 +745,11 @@
                 ]);
 
                 lastUpdate = new Date();
+                originalAnalytics = analytics; // Store for filter reset
                 updateKPIs(analytics, apiStats);
                 updateCharts(analytics);
                 recentData = analytics.legacy_analytics?.recent_queries || [];
-                applyFilters();
+                updateRecentTable(recentData);
                 updateStatus('ok');
             } catch (e) {
                 console.error('Fetch error:', e);
@@ -761,7 +763,6 @@
                 logsData = data.interactions || [];
                 updateLogsTable(logsData);
                 document.getElementById('logCount').textContent = `${logsData.length} interactions`;
-                applyFilters(); // Recalculate stats now that we have full data
             } catch (e) {
                 console.error('Logs error:', e);
                 document.getElementById('logsTable').innerHTML =
@@ -875,6 +876,7 @@
         function applyFilters() {
             const intent = document.getElementById('filterIntent').value;
             const minConf = parseInt(document.getElementById('filterConfidence').value) || 0;
+            const hasFilter = intent || minConf > 0 || showBlockedOnly;
 
             // Filter recentData for the table display
             let filtered = recentData;
@@ -891,7 +893,14 @@
 
             updateRecentTable(filtered);
 
-            // Calculate stats from logsData (full dataset) with same filters
+            // If no filter is active, restore original server-side stats
+            if (!hasFilter && originalAnalytics) {
+                updateKPIs(originalAnalytics, {});
+                updateCharts(originalAnalytics);
+                return;
+            }
+
+            // Calculate stats from logsData (limited dataset) with filters
             let statsData = logsData.map(log => ({
                 intent: log.detected_intent || 'general',
                 confidence: log.confidence_score || 0,
