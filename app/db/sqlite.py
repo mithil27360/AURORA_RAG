@@ -147,7 +147,7 @@ class InteractionLogger:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 interaction_id,
-                datetime.now().isoformat(),
+                datetime.utcnow().isoformat() + "Z",
                 kwargs.get("user_id", "anonymous"),
                 kwargs.get("query", ""),
                 kwargs.get("intent", ""),
