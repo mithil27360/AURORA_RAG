@@ -173,9 +173,9 @@ docker run -d \
     -e HF_HOME=/tmp/huggingface \
     -p 127.0.0.1:8001:8000 \
     -v /opt/aurora/app:/app/app \
-    -v /opt/aurora/data/chroma:/app/data/chroma_data \
-    -v /opt/aurora/data/logs:/app/logs \
-    -v /opt/aurora/data/backups:/app/backups \
+    -v /opt/aurora/data:/app/data \
+    -v /opt/aurora/logs:/app/logs \
+    -v /opt/aurora/backups:/app/backups \
     --add-host=host.docker.internal:host-gateway \
     aurora:latest
 
