@@ -22,7 +22,7 @@ class FastEmbedEmbeddingFunction(EmbeddingFunction):
 
     def __call__(self, input: Documents) -> Embeddings:
         # FastEmbed returns a generator, convert to list
-        return list(self.model.embed(input))
+        return [e.tolist() for e in self.model.embed(input)]
 
 # --------------------------------------
 
@@ -425,6 +425,21 @@ class VectorService:
                 "metadata": {"type": "help", "topic": "venue"}
             },
             {
+                "id": "venue_directory",
+                "text": """VENUE DIRECTORY / LAB LOCATIONS:
+VR Lab: Innovation Center
+Robotics Lab: Engineering Block
+Cyber Security Lab: IT Block
+Computer Lab: IT Block
+ML Lab: IT Block
+Finance Lab: Academic Block
+Mobile Dev Lab: IT Block
+Computer Vision Lab: Engineering Block
+Open Area / Rooftop: Campus
+Library Auditorium: Library""",
+                "metadata": {"type": "help", "topic": "venue"}
+            },
+            {
                 "id": "summary_ai_workshops",
                 "text": """AI ARTIFICIAL INTELLIGENCE WORKSHOPS: There are several AI-focused workshops at Aurora Fest 2026: 1. 'AI-Driven Generative Design System Using StyleGAN3' by ACM Manipal (Jan 22nd). 2. 'OpenCV Workshop' by RUGVED (Jan 24th) covering AI-driven computer vision. 3. 'Sentiment to Signal' by Finova (Jan 22nd) involves AI-based trading decisions. Check these specific events for details.""",
                 "metadata": {"type": "summary", "topic": "ai"}
@@ -604,6 +619,15 @@ Certificate: {ev.get('certificate_offered', 'No')}"""
                     "metadata": {"event": event_name, "type": "schedule"}
                 })
             
+            # Venue (Dedicated Chunk)
+            if venue:
+                text = f"VENUE / LOCATION for {event_name}: {venue}."
+                chunks.append({
+                    "id": f"{event_name}_venue_day{day_num}",
+                    "text": text,
+                    "metadata": {"event": event_name, "type": "venue"}
+                })
+
             # Topics / Description
             topics = event.get("topics_covered") or event.get("project_description") or event.get("event_description")
             if topics:
