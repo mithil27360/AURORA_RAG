@@ -24,6 +24,31 @@ class FastEmbedEmbeddingFunction(EmbeddingFunction):
         # FastEmbed returns a generator, convert to list
         return [e.tolist() for e in self.model.embed(input)]
 
+# --- Formatting Helpers ---
+def format_friendly_date(date_str: str) -> str:
+    """Convert YYYY-MM-DD to '20th Jan, 2026'"""
+    if not date_str or len(date_str) < 10:
+        return date_str
+    
+    try:
+        from datetime import datetime
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        
+        # Suffix logic
+        day = dt.day
+        if 4 <= day <= 20 or 24 <= day <= 30:
+            suffix = "th"
+        else:
+            suffix = ["st", "nd", "rd"][day % 10 - 1]
+            
+        return dt.strftime(f"%-d{suffix} %b, %Y")
+    except:
+        return date_str
+
+def format_friendly_time(time_str: str) -> str:
+    """Normalize '05:00 PM' to '5:00 PM'"""
+    if not time_str: return ""
+    return time_str.lstrip("0")
 # --------------------------------------
 
 class VectorService:
@@ -220,13 +245,61 @@ class VectorService:
         
         found = set()
         
+        # Helper: check against list
+        def check_match(target_list):
+            for name in target_list:
+                # Normalize name
+                name_alnum = re.sub(r'[^a-z0-9]', '', name.lower())
+                if len(query_alnum) > 3 and query_alnum in name_alnum:
+                    found.add(name)
+                
+                # Difflib
+                m = difflib.get_close_matches(query, [name], n=1, cutoff=0.7)
+                if m: found.add(name)
+
+        # A. Check Event Names
         for name in event_names:
-            # Normalize name: "Intro to UI/UX" -> "introtouiux"
             name_alnum = re.sub(r'[^a-z0-9]', '', name.lower())
             if len(query_alnum) > 3 and query_alnum in name_alnum:
                 found.add(name)
 
-        # 2. Existing Difflib (Whole Query)
+        # B. Check Club Names -> Map to Events
+        # Extract "Name (Type) - by Club" pattern from Master List
+        # Pattern: "1. EventName (Type) - by ClubName ("
+        # Robust Regex: 
+        # \d+\.\s+      -> "1. "
+        # (.*?)\s+\(    -> "EventName (" capture group 1
+        # .*\)\s+-\s+by\s+ -> "...) - by "
+        # (.*?)\s+\(?\d -> "ClubName" capture group 2, until next "(" or digit
+        club_pattern = r"\d+\.\s+(.*?)\s+\(.*\)\s+-\s+by\s+(.*?)\s+\(?\d"
+        club_matches = re.findall(club_pattern, text) # List of (Event, Club)
+        
+        for event, club in club_matches:
+            club_norm = re.sub(r'[^a-z0-9]', '', club.lower())
+            
+            # 1. Direct Substring (Bidirectional)
+            # Query "ADG" in Club "ISTExADG" -> Match
+            # Club "ISTE" in Query "ISTE Workshop" -> Match
+            if len(query_alnum) > 2:
+                if query_alnum in club_norm or club_norm in query_alnum:
+                    found.add(event)
+
+            # 2. Token-based Substring (for "ADG workshop")
+            # Split query into words, check if meaningful words are in club name
+            for word in query.split():
+                if len(word) < 3: continue
+                if word.lower() in EXCLUDED_WORDS: continue
+                
+                # Check normalized word against club
+                word_norm = re.sub(r'[^a-z0-9]', '', word.lower())
+                if word_norm and word_norm in club_norm:
+                    found.add(event)
+            
+            # 3. Difflib for Club (Typos)
+            if difflib.get_close_matches(query, [club], n=1, cutoff=0.6):
+                found.add(event)
+
+        # 2. Existing Difflib (Whole Query) on Event Names
         matches = difflib.get_close_matches(query, event_names, n=1, cutoff=0.6)
         if matches:
             found.add(matches[0])
@@ -235,9 +308,15 @@ class VectorService:
         for word in query.split():
             if len(word) < 4: continue
             if word.lower() in EXCLUDED_WORDS: continue  # Skip generic terms
-            m = difflib.get_close_matches(word, event_names, n=1, cutoff=0.6)
-            if m:
-                found.add(m[0])
+            
+            # Check Events
+            m_ev = difflib.get_close_matches(word, event_names, n=1, cutoff=0.65)
+            if m_ev: found.add(m_ev[0])
+            
+            # Check Clubs
+            for event, club in club_matches:
+                if difflib.get_close_matches(word, [club], n=1, cutoff=0.7):
+                    found.add(event)
         
         return list(found)
 
@@ -500,9 +579,12 @@ Library Auditorium: Library""",
             all_dates = [r.get("start_date") for r in rows if r.get("start_date")]
             end_date = max(all_dates) if all_dates else start_date
             
-            date_str = f"({start_date})"
+            s_friendly = format_friendly_date(start_date)
+            e_friendly = format_friendly_date(end_date)
+            
+            date_str = f"({s_friendly})"
             if start_date != end_date:
-                date_str = f"({start_date} to {end_date})"
+                date_str = f"({s_friendly} to {e_friendly})"
 
             # Add truncated description to master list for better context
             description = ev.get('event_description') or ev.get('project_description') or ""
@@ -555,13 +637,22 @@ Library Auditorium: Library""",
             club = ev.get('club_name', '')
             
             # Sanitize dates (Fix common 2055 typo)
-            sdate = str(ev.get('start_date', '')).replace('2055', '2026')
-            edate = str(ev.get('end_date', '')).replace('2055', '2026')
+            sdate_raw = str(ev.get('start_date', '')).replace('2055', '2026')
+            edate_raw = str(ev.get('end_date', '')).replace('2055', '2026')
+            
+            sdate = format_friendly_date(sdate_raw)
+            edate = format_friendly_date(edate_raw)
+            
+            stime = format_friendly_time(ev.get('start_time', ''))
+            etime = format_friendly_time(ev.get('end_time', ''))
+            
+            if not stime: stime = "Refer App"
             
             overview = f"""EVENT: {name}
 Type: {ev.get('event_type', 'Event')}
 Organized by: {club}
 Dates: {sdate} to {edate}
+Metric: Venue={ev.get('venue', 'Refer App')}, Time={stime} - {etime}
 Description: {ev.get('event_description') or ev.get('project_description') or ev.get('topics_covered', 'No description available.')}
 Registration: {ev.get('registration_required', 'No')}
 Certificate: {ev.get('certificate_offered', 'No')}"""
@@ -608,9 +699,13 @@ Certificate: {ev.get('certificate_offered', 'No')}"""
             except Exception as e:
                 logger.warning(f"Date parsing failed for {event_name}: {e}")
 
-            # Schedule
-            if event.get("start_time"):
-                text = f"SCHEDULE: {event_name} ({event_type}) Day {day_num} on {final_date_str} from {event.get('start_time', '')} to {event.get('end_time', '')}."
+            # Schedule - Create chunk if EITHER time OR venue exists
+            if event.get("start_time") or event.get("venue"):
+                stime = format_friendly_time(event.get('start_time', ''))
+                etime = format_friendly_time(event.get('end_time', ''))
+                fdate = format_friendly_date(final_date_str)
+                
+                text = f"SCHEDULE: {event_name} ({event_type}) Day {day_num} on {fdate} from {stime} to {etime}."
                 if event.get("venue"):
                     text += f" Venue: {event.get('venue')}."
                 chunks.append({
