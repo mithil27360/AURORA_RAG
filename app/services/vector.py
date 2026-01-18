@@ -106,7 +106,7 @@ class VectorService:
         """
         return self.embedding([query])[0]
             
-    async def search(self, query: str, k: int = None, filters: Dict = None):
+    async def search(self, query: str, k: int = None, filters: Dict = None, min_score: float = None):
         """Async wrapper for search with timeout handling and concurrency cap."""
         if not self.collection:
             return []
@@ -170,7 +170,11 @@ class VectorService:
                     # Similarity conversion
                     similarity = max(0.0, 1.0 - (dist / 2.0))
                     
-                    if similarity >= settings.vector.confidence_threshold:
+                    
+                    # Determine threshold (Use override or default)
+                    threshold = min_score if min_score is not None else settings.vector.confidence_threshold
+                    
+                    if similarity >= threshold:
                         processed.append({
                             "text": doc,
                             "score": similarity,

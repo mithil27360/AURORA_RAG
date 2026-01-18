@@ -437,6 +437,8 @@ async def serve_chat(
         logger.warning(f"Fuzzy search failed: {e}")
 
     # --- Static Content Filter Forcing (Fix for retreival issues) ---
+    search_min_score = None
+    
     if not filters:
         q_lower = search_query.lower()
         
@@ -484,6 +486,11 @@ async def serve_chat(
         elif "ai" in q_lower or "artificial intelligence" in q_lower:
              filters = {"topic": "ai"}
              logger.info(f"[{request_id}] Static Filter Forced: AI")
+        
+        # If we forced a filter, LOWER the threshold to ensure we get the content
+        # (The metadata filter guarantees relevance, so we don't need high vector similarity)
+        if filters:
+             search_min_score = 0.2
     
     # --- Query Expansion (Dynamic) ---
     if not filters: # Only expand if no specific event found via fuzzy search
@@ -499,7 +506,7 @@ async def serve_chat(
     initial_k = settings.vector.top_k * 2  
     try:
         chunks = await asyncio.wait_for(
-            vector_store.search(search_query, k=initial_k, filters=filters),
+            vector_store.search(search_query, k=initial_k, filters=filters, min_score=search_min_score),
             timeout=30.0
         )
     except asyncio.TimeoutError:
