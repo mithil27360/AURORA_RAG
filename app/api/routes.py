@@ -378,6 +378,28 @@ async def serve_chat(
                 interaction_id=request_id
             )
 
+    # Get conversation history EARLY for contextualization
+    user_id = hashlib.md5(ip.encode()).hexdigest()[:16]
+    history = []
+    try:
+        history = await asyncio.wait_for(redis.get_history(user_id), timeout=2.0)
+    except Exception:
+        pass
+    
+    # --- Contextualization Step ---
+    search_query = req.query
+    contextualized_query = req.query
+    
+    if history and not any(x in req.query.lower() for x in ["hi", "hello", "thanks"]):
+        # Only rewrite if history exists and not a simple greeting
+        try:
+            contextualized_query = await llm.contextualize_query(req.query, history)
+            if contextualized_query.lower() != req.query.lower():
+                logger.info(f"[{request_id}] Contextualized: '{req.query}' -> '{contextualized_query}'")
+                search_query = contextualized_query
+        except Exception as e:
+            logger.warning(f"[{request_id}] Contextualization skipped: {e}")
+
     # Build retrieval filters
     filters = None
     if intent == "schedule":
@@ -388,15 +410,23 @@ async def serve_chat(
     elif intent == "rules":
         filters = {"type": {"$in": ["rules", "general", "about"]}}
 
-    # Fuzzy Augmentation for Typos
-    search_query = req.query
+    # Fuzzy Augmentation for Typos (Use ORIGINAL query for fuzzy matching first to avoid hallucinated terms?)
+    # ... Actually, better to use contextualized query if it resolved a name "it" -> "DevSprint"
+    # But let's try fuzzy match on BOTH to be safe.
+    
     try:
+        # Try finding event in original query
         fuzzy_matches = await vector_store.fuzzy_search_event(req.query)
+        
+        # If none, try contextualized
+        if not fuzzy_matches and search_query != req.query:
+             fuzzy_matches = await vector_store.fuzzy_search_event(search_query)
+
         if fuzzy_matches:
             # Found a specific event name! 
             # 1. Prioritize it in the query
             match_str = ' '.join(fuzzy_matches)
-            search_query = f"{match_str} details"
+            search_query = f"{match_str} details {search_query}"
             
             # 2. FORCE retrieval via metadata filter (Bypass vector noise)
             # This guarantees the chunk is found even if similarity is low due to acronyms/typos.
@@ -408,7 +438,7 @@ async def serve_chat(
 
     # --- Static Content Filter Forcing (Fix for retreival issues) ---
     if not filters:
-        q_lower = req.query.lower()
+        q_lower = search_query.lower()
         
         # 1. Sponsors
         if "sponsor" in q_lower or "partner" in q_lower:
@@ -499,7 +529,7 @@ async def serve_chat(
                 
                 reranked_chunks = await asyncio.to_thread(
                     reranker.rerank, 
-                    req.query, 
+                    search_query,  # Rerank against REWRITTEN query
                     rerank_candidates, 
                     top_k=settings.vector.top_k
                 )
@@ -515,12 +545,6 @@ async def serve_chat(
          from fastapi.responses import StreamingResponse
          
          async def stream_generator():
-             # Basic history retrieval (non-blocking attempt)
-             history = []
-             try:
-                 history = await asyncio.wait_for(redis.get_history(user_id), timeout=0.5)
-             except: pass
-             
              async for token in llm.get_answer_stream(req.query, chunks, intent, history):
                  yield token
                  
@@ -561,14 +585,6 @@ async def serve_chat(
             interaction_id=request_id
         )
     
-    # Get conversation history
-    user_id = hashlib.md5(ip.encode()).hexdigest()[:16]
-    try:
-        history = await asyncio.wait_for(redis.get_history(user_id), timeout=2.0)
-    except Exception:
-        history = []  # Continue without history
-    
-
     # Generate response
     try:
         llm_result = await asyncio.wait_for(

@@ -1,5 +1,6 @@
 """LLM Service - Handles Groq API interactions for answer generation."""
 
+import asyncio
 import logging
 from groq import Groq
 from typing import Dict, List
@@ -377,6 +378,50 @@ Expanded Query:"""
 
         except Exception as e:
             logger.warning(f"Query expansion failed: {e}")
+            return query
+
+    async def contextualize_query(self, query: str, history: List[Dict]) -> str:
+        """
+        Rewrite query to be self-contained based on history.
+        User: "when is spotify workshop" -> AI: "Jan 20" -> User: "what will they teach"
+        Rewritten: "what will the spotify workshop teach"
+        """
+        if not history or not self.clients:
+            return query
+            
+        client = next(self.client_cycle)
+        
+        # Only use last 2 turns to avoid noise
+        recent_history = history[-2:]
+        history_text = "\n".join([f"User: {h['query']}\nAI: {h['answer']}" for h in recent_history])
+        
+        prompt = f"""Combine the chat history and the latest question into a standalone question.
+History:
+{history_text}
+
+Latest Question: "{query}"
+
+Task: Rewrite "Latest Question" to include missing context from History (e.g. event names, clubs).
+If the question is already specific, return it as is.
+Do NOT answer the question.
+Output ONLY the rewritten question.
+
+Standalone Question:"""
+
+        try:
+            response = await asyncio.to_thread(
+                client.chat.completions.create,
+                model="llama-3.1-8b-instant",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                max_tokens=64,
+                timeout=3.0
+            )
+            rewritten = response.choices[0].message.content.strip()
+            # Remove quotes if present
+            return rewritten.replace('"', '').replace("'", "")
+        except Exception as e:
+            logger.warning(f"Contextualization failed: {e}")
             return query
 
     def _error_response(self, msg: str, confidence: float = 0.0):
