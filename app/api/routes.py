@@ -310,6 +310,10 @@ async def serve_chat(
         intent = "contact"
     elif any(x in query_lower for x in ["rule", "prerequisite", "eligible", "requirement"]):
         intent = "rules"
+    elif any(x == query_lower for x in ["hi", "hello", "hey", "greetings", "good morning", "good evening"]):
+        intent = "greeting"
+    elif any(x in query_lower for x in ["hmm", "ok", "okay", "cool", "nice", "thanks", "thank you", "great", "bye", "goodbye"]):
+        intent = "small_talk"
 
     # User Identification & Greeting Logic
     # User Identification: Prioritize X-Session-ID header (UUID v4) for robustness behind proxies
@@ -504,17 +508,22 @@ async def serve_chat(
     # Vector retrieval with timeout
     # Reduced top_k to prevent timeouts on CPU-limited environment
     initial_k = settings.vector.top_k * 2  
-    try:
-        chunks = await asyncio.wait_for(
-            vector_store.search(search_query, k=initial_k, filters=filters, min_score=search_min_score),
-            timeout=30.0
-        )
-    except asyncio.TimeoutError:
-        logger.error(f"[{request_id}] Vector search timeout")
+    
+    # Skip retrieval for small talk to save resources
+    if intent in ["small_talk", "greeting"]:
         chunks = []
-    except Exception as e:
-        logger.error(f"[{request_id}] Vector search failed: {e}")
-        chunks = []
+    else:
+        try:
+            chunks = await asyncio.wait_for(
+                vector_store.search(search_query, k=initial_k, filters=filters, min_score=search_min_score),
+                timeout=30.0
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"[{request_id}] Vector search timeout")
+            chunks = []
+        except Exception as e:
+            logger.error(f"[{request_id}] Vector search failed: {e}")
+            chunks = []
     
     # --- Reranking Step (Conditional) ---
     # Check for Latency Mode
@@ -558,7 +567,7 @@ async def serve_chat(
          return StreamingResponse(stream_generator(), media_type="text/plain")
 
     # Standard Response (Normal Mode)
-    if not chunks: # from vector search
+    if not chunks and intent not in ["small_talk", "greeting"]: # from vector search
         response_time = (time.time() - start) * 1000
         return ChatResponse(
             answer="I'm having trouble accessing my knowledge base right now. Please try again in a moment, or ask me something else about Aurora Fest.",
@@ -580,7 +589,7 @@ async def serve_chat(
                 chunks.insert(0, master_chunk) # Prioritize it
                 logger.info(f"[{request_id}] Force included master_event_list")
     
-    if not chunks:
+    if not chunks and intent not in ["small_talk", "greeting"]:
         response_time = (time.time() - start) * 1000
         return ChatResponse(
             answer="I'm having trouble accessing my knowledge base right now. Please try again in a moment, or ask me something else about Aurora Fest.",
