@@ -52,9 +52,27 @@ class SheetsService:
         try:
             sheet = client.open_by_key(settings.GOOGLE_SHEETS_ID)
             
-            # Fetch Events (Worksheet 0)
-            worksheet = sheet.get_worksheet(0)
-            data = worksheet.get_all_records()
+            # Iterate worksheets to find the right ones
+            all_ws = sheet.worksheets()
+            event_ws = None
+            faq_ws = None
+            
+            for ws in all_ws:
+                title = ws.title.lower().strip()
+                if "event" in title: # Matches "event details", "events", "event_details"
+                    event_ws = ws
+                elif "faq" in title: # Matches "fully faq", "faqs"
+                    faq_ws = ws
+            
+            # Fallback to index if names fail (Safety net)
+            if not event_ws:
+                logger.warning("Could not find sheet with 'event' in title. Defaulting to first sheet.")
+                event_ws = all_ws[0]
+            
+            logger.info(f"Using Event Sheet: '{event_ws.title}'")
+            
+            # Fetch Events
+            data = event_ws.get_all_records()
             
             # Normalize keys to lowercase/underscore
             normalized_data = []
@@ -70,22 +88,25 @@ class SheetsService:
             
             logger.info(f"Fetched {len(normalized_data)} raw events from Sheets")
             
-            # Fetch FAQs (Worksheet 1) if exists
-            try:
-                faq_sheet = sheet.get_worksheet(1)
-                faq_data = faq_sheet.get_all_records()
-                for row in faq_data:
-                    clean_row = {
-                        k.lower().strip().replace(" ", "_"): str(v).strip() 
-                        for k, v in row.items() 
-                        if k and str(v).strip()
-                    }
-                    if "question" in clean_row and "answer" in clean_row:
-                        clean_row["_is_faq"] = True
-                        normalized_data.append(clean_row)
-                logger.info(f"Fetched {len(faq_data)} FAQs from Sheets")
-            except Exception as faq_e:
-                logger.warning(f"Could not fetch FAQs: {faq_e}")
+            # Fetch FAQs
+            if faq_ws:
+                logger.info(f"Using FAQ Sheet: '{faq_ws.title}'")
+                try:
+                    faq_data = faq_ws.get_all_records()
+                    for row in faq_data:
+                        clean_row = {
+                            k.lower().strip().replace(" ", "_"): str(v).strip() 
+                            for k, v in row.items() 
+                            if k and str(v).strip()
+                        }
+                        if "question" in clean_row and "answer" in clean_row:
+                            clean_row["_is_faq"] = True
+                            normalized_data.append(clean_row)
+                    logger.info(f"Fetched {len(faq_data)} FAQs from Sheets")
+                except Exception as faq_e:
+                    logger.warning(f"Could not fetch FAQs: {faq_e}")
+            else:
+                logger.warning("No FAQ sheet found (checked for 'faq' in title).")
             
             return normalized_data
 
