@@ -76,6 +76,10 @@ def normalize_query(query: str) -> str:
         'registeration': 'registration', 'registation': 'registration',
         'schdule': 'schedule', 'schedul': 'schedule',
         'uiux': 'intro to ui/ux', 'ui/ux': 'intro to ui/ux',
+        # Semantic mappings
+        'festival guide': 'list of all events',
+        'guide book': 'list of all events',
+        'event guide': 'list of all events',
     }
     for typo, correct in typo_map.items():
         q = q.replace(typo, correct)
@@ -310,9 +314,9 @@ async def serve_chat(
         intent = "contact"
     elif any(x in query_lower for x in ["rule", "prerequisite", "eligible", "requirement"]):
         intent = "rules"
-    elif any(x == query_lower for x in ["hi", "hello", "hey", "greetings", "good morning", "good evening"]):
+    elif re.search(r'\b(hi|hello|hey|greetings|good\s+morning|good\s+evening)\b', query_lower):
         intent = "greeting"
-    elif any(x in query_lower for x in ["hmm", "ok", "okay", "cool", "nice", "thanks", "thank you", "great", "bye", "goodbye"]):
+    elif re.search(r'\b(hmm|ok|okay|cool|nice|thanks|thank\s+you|great|bye|goodbye)\b', query_lower):
         intent = "small_talk"
 
     # User Identification & Greeting Logic
