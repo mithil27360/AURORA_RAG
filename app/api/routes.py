@@ -494,6 +494,11 @@ async def serve_chat(
         elif "ai" in q_lower or "artificial intelligence" in q_lower:
              filters = {"topic": "ai"}
              logger.info(f"[{request_id}] Static Filter Forced: AI")
+
+        # 10. Stargazing
+        elif "stargazing" in q_lower or "astronomy" in q_lower or "star" in q_lower:
+             filters = {"topic": "stargazing"}
+             logger.info(f"[{request_id}] Static Filter Forced: Stargazing")
         
         # If we forced a filter, LOWER the threshold to ensure we get the content
         # (The metadata filter guarantees relevance, so we don't need high vector similarity)

@@ -523,6 +523,11 @@ Library Auditorium: Library""",
                 "metadata": {"type": "help", "topic": "venue"}
             },
             {
+                "id": "event_stargazing_static",
+                "text": """EVENT: Stargazing. Type: Workshop/Activity. Organized by: Astronomy Club x ISTE. Date: [DATE TO BE ANNOUNCED]. Time: [TIME TO BE ANNOUNCED]. Venue: [VENUE TO BE ANNOUNCED]. Description: Experience the wonders of the cosmos with the Astronomy Club. Learn about constellations, telescopes, and the mysteries of the universe. A relaxing and educational session under the stars.""",
+                "metadata": {"type": "event", "topic": "stargazing", "event": "Stargazing"}
+            },
+             {
                 "id": "summary_ai_workshops",
                 "text": """AI ARTIFICIAL INTELLIGENCE WORKSHOPS: There are several AI-focused workshops at Aurora Fest 2026: 1. 'AI-Driven Generative Design System Using StyleGAN3' by ACM Manipal (Jan 22nd). 2. 'OpenCV Workshop' by RUGVED (Jan 24th) covering AI-driven computer vision. 3. 'Sentiment to Signal' by Finova (Jan 22nd) involves AI-based trading decisions. Check these specific events for details.""",
                 "metadata": {"type": "summary", "topic": "ai"}

@@ -61,7 +61,7 @@ class SheetsService:
                 title = ws.title.lower().strip()
                 if "event" in title: # Matches "event details", "events", "event_details"
                     event_ws = ws
-                elif "faq" in title: # Matches "fully faq", "faqs"
+                elif any(x in title for x in ["faq", "faw", "questions", "q&a"]): # Matches "fully faq", "faqs", "faw sheet", "questions"
                     faq_ws = ws
             
             # Fallback to index if names fail (Safety net)
