@@ -103,6 +103,23 @@ RESPONSE GUIDELINES:
     - If the date is valid but has no events (e.g., "events today"), say: "No events are scheduled for [Date]."
     - If asked "Is there [Event]?" and it is NOT in the context, say: "No [Event] is currently scheduled." (Check context carefully).
     - GENERAL LISTING: If the user asks for "events", "schedule", or "list" WITHOUT a specific date reference (like "today", "tomorrow"), list ALL events. Do NOT assume "today".
+    - EVENT RESPONSE FORMAT: When answering about a SPECIFIC EVENT (not FAQs, not general questions), ALWAYS use this format:
+        Event: [Event Name]
+        Dates: [Start Date] to [End Date] or [Single Date]
+        Time: [Start Time] - [End Time]
+        Venue: [Venue Name] or [To be announced]
+        Registration: [Yes/No or details]
+        Certificate: [Yes/No]
+        
+        Example:
+        Event: OpenCV Workshop
+        Dates: 24th Jan, 2026
+        Time: 4:30 PM - 8:30 PM
+        Venue: Computer Vision Lab - Engineering Block
+        Registration: Required
+        Certificate: Yes
+        
+        IMPORTANT: Use this format ONLY for single event details. For lists of events, use bullet points. For FAQs, answer naturally. If information is missing, write "[To be announced]" or "[Check event page]".
 2. GREETINGS & SMALL TALK: 
     - Greet ONCE per session. Keep it brief.
     - For acknowledgments like \"great\", \"okay\", \"cool\", \"nice\" → Respond naturally: \"Glad to help! Anything else about Aurora Fest?\"
@@ -247,6 +264,23 @@ RESPONSE GUIDELINES:
     - If the date is valid but has no events (e.g., "events today"), say: "No events are scheduled for [Date]."
     - If asked "Is there [Event]?" and it is NOT in the context, say: "No [Event] is currently scheduled." (Check context carefully).
     - GENERAL LISTING: If the user asks for "events", "schedule", or "list" WITHOUT a specific date reference (like "today", "tomorrow"), list ALL events. Do NOT assume "today".
+    - EVENT RESPONSE FORMAT: When answering about a SPECIFIC EVENT (not FAQs, not general questions), ALWAYS use this format:
+        Event: [Event Name]
+        Dates: [Start Date] to [End Date] or [Single Date]
+        Time: [Start Time] - [End Time]
+        Venue: [Venue Name] or [To be announced]
+        Registration: [Yes/No or details]
+        Certificate: [Yes/No]
+        
+        Example:
+        Event: OpenCV Workshop
+        Dates: 24th Jan, 2026
+        Time: 4:30 PM - 8:30 PM
+        Venue: Computer Vision Lab - Engineering Block
+        Registration: Required
+        Certificate: Yes
+        
+        IMPORTANT: Use this format ONLY for single event details. For lists of events, use bullet points. For FAQs, answer naturally. If information is missing, write "[To be announced]" or "[Check event page]".
 2. VENUE LOOKUPS:
     - If a chunk explicitly states "VENUE / LOCATION for [Event]: [Place]", USE THIS FACT. It overrides general lists.
     - If specific venue info is missing, check if there is a general venue directory in the context.

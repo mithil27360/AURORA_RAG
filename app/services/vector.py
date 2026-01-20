@@ -395,6 +395,34 @@ class VectorService:
                 else:
                     logger.error(f"Unexpected deletion error: {e}")
 
+    
+    def _is_event_today_or_tomorrow(self, start_date_str: str, end_date_str: str, date_type: str) -> bool:
+        """Check if event is happening today or tomorrow.
+        
+        Args:
+            start_date_str: Event start date in YYYY-MM-DD format
+            end_date_str: Event end date in YYYY-MM-DD format  
+            date_type: "today" or "tomorrow"
+        
+        Returns:
+            True if target_date is within [start_date, end_date]
+        """
+        from datetime import datetime, timedelta
+        
+        now = datetime.now()
+        target_date = now.date() if date_type == "today" else (now + timedelta(days=1)).date()
+        
+        try:
+            # Sanitize dates (fix 2055 typo)
+            start_clean = start_date_str.replace('2055', '2026')
+            end_clean = end_date_str.replace('2055', '2026')
+            
+            start = datetime.strptime(start_clean, "%Y-%m-%d").date()
+            end = datetime.strptime(end_clean, "%Y-%m-%d").date()
+            
+            return start <= target_date <= end
+        except:
+            return False
     def _chunk_events(self, events: List[Dict]) -> List[Dict]:
         """Convert events to RAG chunks with master list for 'all events' queries.
         
@@ -535,6 +563,125 @@ Library Auditorium: Library""",
         ]
         chunks.extend(static_chunks)
         
+        # ===== USER-SUBMITTED FAQs (Added directly to chunks) =====
+        user_faqs = [
+            {
+                "id": "faq_payment_still_pending",
+                "text": """FAQ: I paid but the site is still asking me to pay again.
+Answer: Your payment is under manual verification. It usually updates the same day or by the next day. Until then, the site may show "payment pending.\"""",
+                "metadata": {"type": "faq", "event": "General", "category": "payment"}
+            },
+            {
+                "id": "faq_payment_verification_time",
+                "text": """FAQ: How long does payment verification take?
+Answer: Payments done today are usually verified by tomorrow. Sometimes it gets updated within a few hours.""",
+                "metadata": {"type": "faq", "event": "General", "category": "payment"}
+            },
+            {
+                "id": "faq_where_to_pay",
+                "text": """FAQ: Where do we have to pay on the website?
+Answer: After registering and logging in, go to your Profile. The payment option is available there.""",
+                "metadata": {"type": "faq", "event": "General", "category": "registration"}
+            },
+            {
+                "id": "faq_year_field",
+                "text": """FAQ: What should I fill in the 'Year' field?
+Answer: Fill in your graduation year.""",
+                "metadata": {"type": "faq", "event": "General", "category": "registration"}
+            },
+            {
+                "id": "faq_see_workshops",
+                "text": """FAQ: I filled the Google Form. Where can I see the workshops?
+Answer: Once your payment and registration are verified, you can see and select workshops from your profile on the website.""",
+                "metadata": {"type": "faq", "event": "General", "category": "registration"}
+            },
+            {
+                "id": "faq_how_to_login",
+                "text": """FAQ: How to login on the website?
+Answer: Use the same email/phone you used while registering on the Aurora website.""",
+                "metadata": {"type": "faq", "event": "General", "category": "registration"}
+            },
+            {
+                "id": "faq_workshop_timings",
+                "text": """FAQ: What time are the workshops?
+Answer: All workshops are from 5 PM to 8 PM. One special workshop is from 4:30 PM to 8:30 PM.""",
+                "metadata": {"type": "faq", "event": "General", "category": "workshops"}
+            },
+            {
+                "id": "faq_two_day_workshops",
+                "text": """FAQ: Some workshops are two days. Do we have to attend both?
+Answer: Yes. The second day is a continuation. You must attend both days to complete it.""",
+                "metadata": {"type": "faq", "event": "General", "category": "workshops"}
+            },
+            {
+                "id": "faq_workshop_venues",
+                "text": """FAQ: Where will the workshops be held?
+Answer: Venues will be announced shortly before each workshop.""",
+                "metadata": {"type": "faq", "event": "General", "category": "workshops"}
+            },
+            {
+                "id": "faq_multiple_workshops",
+                "text": """FAQ: Can I register for more than one workshop?
+Answer: Yes. You can register for multiple workshops.""",
+                "metadata": {"type": "faq", "event": "General", "category": "workshops"}
+            },
+            {
+                "id": "faq_stargazing_included",
+                "text": """FAQ: Is stargazing included in the workshop package?
+Answer: Yes. Stargazing is included with the workshop pass. There is no separate individual ticket.""",
+                "metadata": {"type": "faq", "event": "Stargazing", "category": "workshops"}
+            },
+            {
+                "id": "faq_stargazing_date",
+                "text": """FAQ: When is the stargazing event?
+Answer: The exact date depends on weather. It is likely around 23rd, but final details will be announced later.""",
+                "metadata": {"type": "faq", "event": "Stargazing", "category": "schedule"}
+            },
+            {
+                "id": "faq_hackathon_in_package",
+                "text": """FAQ: Is the hackathon included in the ₹250 package?
+Answer: No. Hackathon is separate. It costs ₹200 per team (2–5 members).""",
+                "metadata": {"type": "faq", "event": "DevSprint", "category": "registration"}
+            },
+            {
+                "id": "faq_hackathon_venue",
+                "text": """FAQ: Where will the hackathon be held?
+Answer: Offline at the group study hall in the library.""",
+                "metadata": {"type": "faq", "event": "DevSprint", "category": "venue"}
+            },
+            {
+                "id": "faq_hackathon_teammates",
+                "text": """FAQ: How do hackathon teammates join the team?
+Answer: Each member must register on the site and join the team. If someone doesn't, they are removed.""",
+                "metadata": {"type": "faq", "event": "DevSprint", "category": "registration"}
+            },
+            {
+                "id": "faq_ctf_teams",
+                "text": """FAQ: What about CTF teams?
+Answer: CTF teams will be made on the CTF website. The link will be shared later.""",
+                "metadata": {"type": "faq", "event": "AuroraCTF", "category": "registration"}
+            },
+            {
+                "id": "faq_missed_deadline",
+                "text": """FAQ: I missed the deadline. Can I still register for workshops?
+Answer: On-spot registration may be available only if seats are empty. You may have to go to the venue and wait.""",
+                "metadata": {"type": "faq", "event": "General", "category": "registration"}
+            },
+            {
+                "id": "faq_paid_but_pending",
+                "text": """FAQ: I paid and filled the form but site still shows pending.
+Answer: It can be verified on the spot at the venue, but only if you have actually paid.""",
+                "metadata": {"type": "faq", "event": "General", "category": "payment"}
+            },
+            {
+                "id": "faq_tech_talk_timing",
+                "text": """FAQ: What time is the Tech Talk?
+Answer: Be seated by 5:45 PM. Session starts at 6:00 PM at Library Auditorium. It is free.""",
+                "metadata": {"type": "faq", "event": "Tech Talk", "category": "schedule"}
+            }
+        ]
+        chunks.extend(user_faqs)
+        
         # ===== Separate FAQs from Events =====
         faqs = [e for e in events if e.get("_is_faq")]
         events = [e for e in events if not e.get("_is_faq")]
@@ -665,11 +812,21 @@ Metric: Venue={ev.get('venue', 'Refer App')}, Time={stime} - {etime}
 Description: {ev.get('event_description') or ev.get('project_description') or ev.get('topics_covered', 'No description available.')}
 Registration: {ev.get('registration_required', 'No')}
 Certificate: {ev.get('certificate_offered', 'No')}"""
+            # Check if event is today or tomorrow
+            is_today = self._is_event_today_or_tomorrow(sdate_raw, edate_raw, "today")
+            is_tomorrow = self._is_event_today_or_tomorrow(sdate_raw, edate_raw, "tomorrow")
+            
+            metadata = {"event": name, "type": "general"}
+            if is_today:
+                metadata["is_today"] = True
+            if is_tomorrow:
+                metadata["is_tomorrow"] = True
+            
             
             chunks.append({
                 "id": f"{name}_overview",
                 "text": overview,
-                "metadata": {"event": name, "type": "general"}
+            "metadata": metadata
             })
             
             # Dedicated club/organizer chunk for "which club" queries

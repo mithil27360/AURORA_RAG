@@ -518,9 +518,56 @@ async def serve_chat(
     # Reduced top_k to prevent timeouts on CPU-limited environment
     initial_k = settings.vector.top_k * 2  
     
-    # Skip retrieval for small talk to save resources
+    # Skip retrieval and LLM for greetings/small talk to save resources
     if intent in ["small_talk", "greeting"]:
         chunks = []
+        
+        # Return immediate response without LLM call
+        if intent == "greeting":
+            answer = "Hi! What would you like to know about Aurora events?"
+        else:  # small_talk
+            if any(x in query_lower for x in ["thank", "thanks"]):
+                answer = "You're welcome! Is there anything else I can help you with?"
+            elif any(x in query_lower for x in ["bye", "goodbye"]):
+                answer = "Have a great day!"
+            else:
+                answer = "Glad to help! Anything else about Aurora Fest?"
+        
+        # Return immediately without LLM processing
+        response_time = (time.time() - start) * 1000
+        
+        # Log the interaction in background
+        async def log_greeting_bg():
+            try:
+                await interaction_logger.log_interaction(
+                    interaction_id=request_id,
+                    query=req.query,
+                    answer=answer,
+                    intent=intent,
+                    confidence=1.0,
+                    response_time_ms=response_time,
+                    cached=False,
+                    user_id=user_id,
+                    ip_hash=ip_hash,
+                    device_type=device_info["device_type"],
+                    browser=device_info["browser"],
+                    os=device_info["os"]
+                )
+                await interaction_logger.log_temp_ip(ip, ip_hash, request_id)
+            except Exception as e:
+                logger.error(f"Background greeting log failed: {e}")
+        
+        asyncio.create_task(log_greeting_bg())
+        
+        return ChatResponse(
+            answer=answer,
+            confidence=1.0,
+            tier="High",
+            response_time_ms=response_time,
+            intent=intent,
+            timestamp=datetime.now().isoformat(),
+            interaction_id=request_id
+        )
     else:
         try:
             chunks = await asyncio.wait_for(
