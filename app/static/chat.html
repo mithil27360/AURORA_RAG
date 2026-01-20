@@ -561,7 +561,7 @@
                 const originalHtml = feedbackDiv.innerHTML;
                 feedbackDiv.innerHTML = `<span style="color: #94a3b8; font-size: 11px;">Sending...</span>`;
 
-                const response = await fetch(`${API_URL}/feedback`, {
+                const response = await fetch(`${API_URL}/vote`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ interaction_id: interactionId, feedback: feedback })

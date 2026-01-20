@@ -907,8 +907,8 @@ async def get_api_stats(
         "api_keys": llm.get_usage_stats()
     }
 
-@router.post("/feedback")
-async def submit_feedback(
+@router.post("/vote")
+async def submit_vote(
     req: FeedbackRequest,
     interaction_logger: InteractionLogger = Depends(get_interaction_logger)
 ):
