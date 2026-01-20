@@ -45,15 +45,11 @@
         /* --- Main App Container --- */
         .app-container {
             width: 100%;
-            max-width: 500px;
-            /* Optimal mobile/chat width on laptop */
-            height: 90vh;
+            height: 100vh;
             background: var(--chat-bg);
-            border-radius: 24px;
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            box-shadow: var(--shadow-card);
             position: relative;
         }
 
@@ -559,7 +555,12 @@
 
         // Feedback submission function
         async function submitFeedback(interactionId, feedback, button) {
+            const feedbackDiv = button.parentElement;
             try {
+                // Visual feedback that request is processing
+                const originalHtml = feedbackDiv.innerHTML;
+                feedbackDiv.innerHTML = `<span style="color: #94a3b8; font-size: 11px;">Sending...</span>`;
+
                 const response = await fetch(`${API_URL}/feedback`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -568,11 +569,15 @@
 
                 if (response.ok) {
                     // Replace buttons with thank you message
-                    const feedbackDiv = button.parentElement;
                     feedbackDiv.innerHTML = `<span style="color: #64748b; font-size: 11px;">✓ Thanks for your feedback!</span>`;
+                } else {
+                    throw new Error(`Server error: ${response.status}`);
                 }
             } catch (error) {
                 console.error('Feedback error:', error);
+                // Restore buttons and show error alert (or small text)
+                // Actually showing small red text is better
+                feedbackDiv.innerHTML = `<span style="color: #ef4444; font-size: 11px;">❌ Failed: ${error.message}</span>`;
             }
         }
 
