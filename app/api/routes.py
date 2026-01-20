@@ -638,9 +638,9 @@ async def serve_chat(
             interaction_id=request_id
         )
     
-    # FORCE INCLUDE master list for "event list" or "conflict/clash" queries
-    # This is critical for LLM to see the full timeline to detect overlapping events
-    if intent == "schedule" and any(x in normalized_query for x in ["event", "events", "clash", "conflict", "overlap", "all", "every"]):
+    # FORCE INCLUDE master list for "event list", "dates", or "conflict/clash" queries
+    # This is critical for LLM to see the full timeline to detect overlapping events or answer general schedule questions.
+    if intent == "schedule" and any(x in normalized_query for x in ["event", "events", "clash", "conflict", "overlap", "all", "every", "date", "dates", "schedule", "when", "time", "timing"]):
         master_chunk = await vector_store.get_master_event_list()
         if master_chunk:
             # Avoid duplicate if it was already retrieved
