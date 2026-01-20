@@ -357,7 +357,8 @@
 
     <script>
         // API URL: Use same-origin unless explicitly running dev server on port 8000
-        const API_URL = window.location.port === '8000' ? '' : '';
+        // API URL: Use same-origin if on port 8000, else default to backend
+        const API_URL = window.location.port === '8000' ? '' : 'http://localhost:8000';
 
         const CLUB_ICON = "/static/iste_logo.jpeg";
 
@@ -557,8 +558,8 @@
             msgs.scrollTop = msgs.scrollHeight;
         }
 
-        // Feedback submission function
-        async function submitFeedback(interactionId, feedback, button) {
+        // Feedback submission function (exposed to window for onclick)
+        window.submitFeedback = async function (interactionId, feedback, button) {
             try {
                 const response = await fetch(`${API_URL}/feedback`, {
                     method: "POST",
