@@ -437,8 +437,11 @@ async def serve_chat(
             search_query = f"{match_str} details {search_query}"
             
             # 2. FORCE retrieval via metadata filter (Bypass vector noise)
-            # This guarantees the chunk is found even if similarity is low due to acronyms/typos.
-            filters = {"event": match_str} 
+            # Use $in for multiple matches
+            if len(fuzzy_matches) == 1:
+                filters = {"event": fuzzy_matches[0]}
+            else:
+                filters = {"event": {"$in": fuzzy_matches}} 
             
             logger.info(f"[{request_id}] Fuzzy match forced: {req.query} -> {search_query} (Filter: {filters})")
     except Exception as e:
@@ -668,6 +671,27 @@ async def serve_chat(
         response_time = (time.time() - start) * 1000
         # Metric: Empty Response (Timeout)
         EMPTY_RESPONSES.inc()
+
+        # Log failure in background
+        async def log_timeout_bg():
+            try:
+                await interaction_logger.log_interaction(
+                    interaction_id=request_id,
+                    query=req.query,
+                    answer="I'm taking too long to think! Please try asking your question again.",
+                    intent=intent or "timeout",
+                    confidence=0.0,
+                    response_time_ms=response_time,
+                    cached=False,
+                    user_id=user_id,
+                    ip_hash=ip_hash,
+                    device_type=device_info["device_type"],
+                    browser=device_info["browser"],
+                    os=device_info["os"]
+                )
+            except Exception as e:
+                logger.error(f"Timeout logging failed: {e}")
+        asyncio.create_task(log_timeout_bg())
         return ChatResponse(
             answer="I'm taking too long to think! Please try asking your question again. Our system is experiencing high load.",
             confidence=0.0,
@@ -682,6 +706,27 @@ async def serve_chat(
         response_time = (time.time() - start) * 1000
         # Metric: Empty Response (Error)
         EMPTY_RESPONSES.inc()
+
+        # Log failure in background
+        async def log_error_bg():
+            try:
+                await interaction_logger.log_interaction(
+                    interaction_id=request_id,
+                    query=req.query,
+                    answer="I'm having trouble generating a response right now. Please try again in a moment!",
+                    intent=intent or "error",
+                    confidence=0.0,
+                    response_time_ms=response_time,
+                    cached=False,
+                    user_id=user_id,
+                    ip_hash=ip_hash,
+                    device_type=device_info["device_type"],
+                    browser=device_info["browser"],
+                    os=device_info["os"]
+                )
+            except Exception as e:
+                logger.error(f"Error logging failed: {e}")
+        asyncio.create_task(log_error_bg())
         return ChatResponse(
             answer="I'm having trouble generating a response right now. Please try again in a moment!",
             confidence=0.0,

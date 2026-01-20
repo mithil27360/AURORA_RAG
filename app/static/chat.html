@@ -356,25 +356,8 @@
     </div>
 
     <script>
-        // API CONFIGURATION
-        let API_URL = '';
-        const hostname = window.location.hostname;
-
-        if (hostname === 'localhost' || hostname === '127.0.0.1') {
-            // Local Development
-            if (window.location.port !== '8000') {
-                API_URL = 'http://localhost:8000';
-            }
-        } else if (hostname.includes('aurora.istemanipal.com')) {
-            // Production Frontend -> Backend IP
-            API_URL = 'http://159.89.161.81';
-        } else {
-            // Default: Relative path (Same Origin / Iframe)
-            API_URL = '';
-        }
-
-        // Manual Override (Uncomment if needed)
-        // API_URL = "https://your-backend-url.com";
+        // API URL: Use same-origin unless explicitly running dev server on port 8000
+        const API_URL = window.location.port === '8000' ? '' : '';
 
         const CLUB_ICON = "/static/iste_logo.jpeg";
 
@@ -574,8 +557,8 @@
             msgs.scrollTop = msgs.scrollHeight;
         }
 
-        // Feedback submission function (exposed to window for onclick)
-        window.submitFeedback = async function (interactionId, feedback, button) {
+        // Feedback submission function
+        async function submitFeedback(interactionId, feedback, button) {
             try {
                 const response = await fetch(`${API_URL}/feedback`, {
                     method: "POST",
