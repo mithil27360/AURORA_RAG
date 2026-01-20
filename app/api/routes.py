@@ -637,10 +637,13 @@ async def serve_chat(
             timestamp=datetime.now().isoformat(),
             interaction_id=request_id
         )
-    
+    # Check if we have a specific topic/event filter (don't force master list if we do, to avoid hallucinations)
+    # e.g. "List AI events" sets topic='ai'. We want ONLY AI events, not the master list (which has everything).
+    has_narrow_filter = filters and ("topic" in filters or "event" in filters)
+
     # FORCE INCLUDE master list for "event list", "dates", "venues", or "conflict/clash" queries
     # This is critical for LLM to see the full timeline to detect overlapping events or answer general schedule questions.
-    if intent in ["schedule", "venue"] and any(x in normalized_query for x in ["event", "events", "clash", "conflict", "overlap", "all", "every", "date", "dates", "schedule", "when", "time", "timing", "venue", "venues", "list", "location", "place"]):
+    if not has_narrow_filter and intent in ["schedule", "venue"] and any(x in normalized_query for x in ["event", "events", "clash", "conflict", "overlap", "all", "every", "date", "dates", "schedule", "when", "time", "timing", "venue", "venues", "list", "location", "place"]):
         master_chunk = await vector_store.get_master_event_list()
         if master_chunk:
             # Avoid duplicate if it was already retrieved

@@ -744,9 +744,14 @@ Answer: Be seated by 5:45 PM. Session starts at 6:00 PM at Library Auditorium. I
 
             # Add truncated description to master list for better context
             description = ev.get('event_description') or ev.get('project_description') or ""
-            short_desc = " ".join(description.split()[:15]) + "..." if description else ""
+            short_desc = " ".join(description.split()[:10]) + "..." if description else ""
             
-            master_list += f"{i}. {name} ({ev.get('event_type', 'Event')}) - by {ev.get('club_name', 'Aurora Team')} {date_str} - {short_desc}\n"
+            venue = ev.get('venue', 'TBD')
+            stime = ev.get('start_time', '')
+            etime = ev.get('end_time', '')
+            time_str = f" @ {stime}-{etime}" if stime else ""
+            
+            master_list += f"{i}. {name} ({ev.get('event_type', 'Event')}) - by {ev.get('club_name', 'Aurora Team')} {date_str}{time_str} - Loc: {venue} - {short_desc}\n"
 
         chunks.append({
             "id": "master_event_list",
