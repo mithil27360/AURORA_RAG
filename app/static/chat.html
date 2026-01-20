@@ -357,16 +357,24 @@
 
     <script>
         // API CONFIGURATION
-        // default: use relative path (works if backend is same-origin or using iframe)
-        // local dev: if on localhost:3000, point to localhost:8000
-        const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        const API_URL = (isLocalDev && window.location.port !== '8000')
-            ? 'http://localhost:8000'
-            : '';
+        let API_URL = '';
+        const hostname = window.location.hostname;
 
-        // IMPORTANT: If you are embedding this on a DIFFERENT domain in production (e.g. frontend.com -> backend.com),
-        // please manually set API_URL to your backend address, e.g.:
-        // const API_URL = "https://your-backend-url.com";
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            // Local Development
+            if (window.location.port !== '8000') {
+                API_URL = 'http://localhost:8000';
+            }
+        } else if (hostname.includes('aurora.istemanipal.com')) {
+            // Production Frontend -> Backend IP
+            API_URL = 'http://159.89.161.81';
+        } else {
+            // Default: Relative path (Same Origin / Iframe)
+            API_URL = '';
+        }
+
+        // Manual Override (Uncomment if needed)
+        // API_URL = "https://your-backend-url.com";
 
         const CLUB_ICON = "/static/iste_logo.jpeg";
 
