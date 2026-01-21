@@ -408,8 +408,9 @@ class VectorService:
             True if target_date is within [start_date, end_date]
         """
         from datetime import datetime, timedelta
+        from zoneinfo import ZoneInfo
         
-        now = datetime.now()
+        now = datetime.now(ZoneInfo("Asia/Kolkata"))
         target_date = now.date() if date_type == "today" else (now + timedelta(days=1)).date()
         
         try:
@@ -559,7 +560,17 @@ Library Auditorium: Library""",
                 "id": "summary_ai_workshops",
                 "text": """AI ARTIFICIAL INTELLIGENCE WORKSHOPS: There are several AI-focused workshops at Aurora Fest 2026: 1. 'AI-Driven Generative Design System Using StyleGAN3' by ACM Manipal (Jan 22nd). 2. 'OpenCV Workshop' by RUGVED (Jan 24th) covering AI-driven computer vision. 3. 'Sentiment to Signal' by Finova (Jan 22nd) involves AI-based trading decisions. Check these specific events for details.""",
                 "metadata": {"type": "summary", "topic": "ai"}
-            }
+            },
+            {
+                "id": "help_team_management",
+                "text": """HOW TO ADD TEAM MEMBERS: To add team members to your team (for Hackathon, CTF, or any team event), please follow these steps: 1. Log in to the official Aurora Fest website. 2. Go to your User Dashboard. 3. Create a team or select your existing team. 4. Click the 'Add Member' button. Note: Your teammates must be registered on the website individually before you can add them using their registered email or ID.""",
+                "metadata": {"type": "help", "topic": "team_management"}
+            },
+            {
+                "id": "help_hackathon_typo",
+                "text": """HACKATHON (HACKATON): The flagship hackathon for Aurora Fest is 'DevSprint'. It is a 10-hour coding marathon scheduled for 25th January 2026. If you are looking for 'hackaton' or 'hackathon', please refer to the DevSprint event details.""",
+                "metadata": {"type": "help", "topic": "hackathon"}
+            },
         ]
         chunks.extend(static_chunks)
         
@@ -656,9 +667,9 @@ Answer: Each member must register on the site and join the team. If someone does
                 "metadata": {"type": "faq", "event": "DevSprint", "category": "registration"}
             },
             {
-                "id": "faq_ctf_teams",
-                "text": """FAQ: What about CTF teams?
-Answer: CTF teams will be made on the CTF website. The link will be shared later.""",
+                "id": "faq_ctf_form_team",
+                "text": """FAQ: How to make a CTF team? How to add partner?
+Answer: Create your CTF team directly on the Aurora Website. You can add your partner via the website dashboard. If you face any issues, please contact the organizers.""",
                 "metadata": {"type": "faq", "event": "AuroraCTF", "category": "registration"}
             },
             {
@@ -751,7 +762,14 @@ Answer: Be seated by 5:45 PM. Session starts at 6:00 PM at Library Auditorium. I
             etime = ev.get('end_time', '')
             time_str = f" @ {stime}-{etime}" if stime else ""
             
-            master_list += f"{i}. {name} ({ev.get('event_type', 'Event')}) - by {ev.get('club_name', 'Aurora Team')} {date_str}{time_str} - Loc: {venue} - {short_desc}\n"
+            # Smart Date Tagging (Help LLM identify Today/Tomorrow)
+            tag = ""
+            if self._is_event_today_or_tomorrow(str(start_date), str(end_date), "today"):
+                tag = "**[HAPPENING TODAY]** "
+            elif self._is_event_today_or_tomorrow(str(start_date), str(end_date), "tomorrow"):
+                tag = "**[TOMORROW]** "
+
+            master_list += f"{i}. {tag}{name} ({ev.get('event_type', 'Event')}) - by {ev.get('club_name', 'Aurora Team')} {date_str}{time_str} - Loc: {venue} - {short_desc}\n"
 
         chunks.append({
             "id": "master_event_list",

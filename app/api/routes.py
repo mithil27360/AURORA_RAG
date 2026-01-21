@@ -72,7 +72,7 @@ def normalize_query(query: str) -> str:
     typo_map = {
         'astragavanz': 'astravaganza', 'adtagavanza': 'astravaganza',
         'astravaganz': 'astravaganza', 'astravganza': 'astravaganza',
-        'hackthon': 'hackathon', 'hackathn': 'hackathon',
+        'hackathon': 'hackathon', 'hackaton': 'hackathon',
         'registeration': 'registration', 'registation': 'registration',
         'schdule': 'schedule', 'schedul': 'schedule',
         'uiux': 'intro to ui/ux', 'ui/ux': 'intro to ui/ux',
@@ -819,7 +819,8 @@ async def serve_chat(
         response_time_ms=response_time,
         intent=intent,
         timestamp=datetime.now().isoformat(),
-        interaction_id=request_id
+        interaction_id=request_id,
+        sources=llm_result.get("used_docs")
     )
 
 @router.post("/refresh")

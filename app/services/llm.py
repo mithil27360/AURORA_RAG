@@ -70,10 +70,14 @@ class LLMService:
         from datetime import datetime, timedelta
         
         # ONE SOURCE OF TRUTH: System Time
-        now = datetime.now()
-        today_str = now.strftime("%Y-%m-%d")
-        tomorrow_str = (now + timedelta(days=1)).strftime("%Y-%m-%d")
-        yesterday_str = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+        # ONE SOURCE OF TRUTH: System Time (IST)
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("Asia/Kolkata"))
+        # Date Format: "21 Jan 2026" to match "21st Jan, 2026"
+        fmt = "%d %b %Y (%A)"
+        today_str = now.strftime(fmt)
+        tomorrow_str = (now + timedelta(days=1)).strftime(fmt)
+        yesterday_str = (now - timedelta(days=1)).strftime(fmt)
 
         system_msg = f"""You are the Aurora Fest Assistant, the official AI guide for ISTE's Aurora 2026 college fest.
 Your ONLY purpose is to help students with event schedules, workshops, hackathons, and registration details.
@@ -144,8 +148,10 @@ RESPONSE GUIDELINES:
 4. FEEDBACK & OPINIONS:
     - If the user expresses negative feedback (e.g., "waste", "bad"), respond politely: "I'm sorry to hear you feel that way. We value your feedback and will share it with the organizing team."
     - Do NOT say "I didn't catch that" to opinions.
-5. DATES: Use the exact dates from the context. (Note: Current year is 2026).
-6. SCHEDULE CONFLICTS:
+6. DATES: Use the exact dates from the context. (Note: Current year is 2026).
+    - **CRITICAL**: If an event starts with **[HAPPENING TODAY]**, IT IS TODAY. Recommend it immediately.
+    - Treat "21st Jan" as equal to "21 Jan".
+7. SCHEDULE CONFLICTS:
     - CLASH = Same Date AND Overlapping Time.
     - If user asks for "workshops that don't clash", SELECT ONE event from each clashing set. Do NOT list concurrently running events as a valid combination.
 7. TONE: Professional, concise (2-3 sentences), and helpful. No sarcasm.
@@ -236,10 +242,14 @@ Answer:"""
         
         # ONE SOURCE OF TRUTH: System Time
         from datetime import datetime, timedelta
-        now = datetime.now()
-        today_str = now.strftime("%Y-%m-%d")
-        tomorrow_str = (now + timedelta(days=1)).strftime("%Y-%m-%d")
-        yesterday_str = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+        # ONE SOURCE OF TRUTH: System Time (IST)
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("Asia/Kolkata"))
+        # Date Format: "21 Jan 2026" to match "21st Jan, 2026"
+        fmt = "%d %b %Y (%A)"
+        today_str = now.strftime(fmt)
+        tomorrow_str = (now + timedelta(days=1)).strftime(fmt)
+        yesterday_str = (now - timedelta(days=1)).strftime(fmt)
 
         system_msg = f"""You are the Aurora Fest Assistant, the official AI guide for ISTE's Aurora 2026 college fest.
 Your ONLY purpose is to help students with event schedules, workshops, hackathons, and registration details.
@@ -312,8 +322,10 @@ RESPONSE GUIDELINES:
 5. FEEDBACK & OPINIONS:
     - If the user expresses negative feedback (e.g., "waste", "bad"), respond politely: "I'm sorry to hear you feel that way. We value your feedback and will share it with the organizing team."
     - Do NOT say "I didn't catch that" to opinions.
-6. DATES: Use the exact dates from the context. (Note: Current year is 2026).
-7. SCHEDULE CONFLICTS:
+7. DATES: Use the exact dates from the context. (Note: Current year is 2026).
+    - **CRITICAL**: If an event starts with **[HAPPENING TODAY]**, IT IS TODAY. Recommend it immediately.
+    - Treat "21st Jan" as equal to "21 Jan".
+8. SCHEDULE CONFLICTS:
     - CLASH = Same Date AND Overlapping Time.
     - If user asks for "workshops that don't clash", SELECT ONE event from each clashing set. Do NOT list concurrently running events as a valid combination.
 8. TONE: Professional, concise (2-3 sentences), and helpful. No sarcasm.
