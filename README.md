@@ -57,9 +57,6 @@ Security Gate (IP hashing, abuse check, content moderation)
 - Non-technical organizers update event content without code changes
 - Auto-sync every 5 minutes with blue-green swap on update
 
-**Encryption Key Management**
-- HKDF derivation for purpose-specific keys (encryption, signing, hashing)
-- Key versioning supports rotation without data loss
 
 ### Scaling Strategies
 
@@ -74,8 +71,6 @@ Security Gate (IP hashing, abuse check, content moderation)
 **RAG Pipeline**
 - Vector search with ChromaDB + FastEmbed (all-MiniLM-L6-v2, 384 dimensions)
 - Top-k=50 retrieval with optional cross-encoder reranking
-- Query expansion with synonym and technical term handling
-- Fuzzy matching for event names, abbreviations, and typos
 
 **Security & Privacy**
 - AES-256-CBC encryption for PII, SHA-256 IP hashing
@@ -163,21 +158,10 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 ---
 
-## Bottlenecks & Limitations
-
+## Bottlenecks 
 **Identified Bottlenecks**
 - Groq API rate limits on free tier — mitigated by ~36.5% cache hit rate and key rotation
 - ChromaDB query time degrades beyond ~10K document chunks (currently <400ms at 500–1000 chunks)
-- SQLite writes are serialized — background async logging prevents user-facing impact
-- In-memory semantic cache is not shared across workers — Redis required for horizontal scaling
-
-**Known Limitations**
-- Single-tenant (event-scoped, no multi-tenancy)
-- Rule-based intent classification (keyword matching, not ML)
-- No streaming responses in turbo mode
-- Abuse detection state is in-memory (not shared across instances)
-- Cross-encoder reranking disabled in turbo mode (+50–100ms trade-off)
-
 
 
 ---
@@ -186,8 +170,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 ```env
 # Application
-ENVIRONMENT=production
-DEBUG=false
+
 
 # LLM (comma-separated keys for rotation)
 GROQ_API_KEY=gsk_key1,gsk_key2,gsk_key3
@@ -203,7 +186,6 @@ GOOGLE_CREDS_JSON={"type":"service_account",...}
 REDIS_URL=redis://redis:6379/0
 
 # Security
-SECRET_KEY=<32+ character secret>
 DASHBOARD_USERNAME=admin
 DASHBOARD_PASSWORD=<strong password>
 
@@ -212,14 +194,6 @@ GRAFANA_ADMIN_USER=admin
 GRAFANA_ADMIN_PASSWORD=<strong password>
 PROMETHEUS_ADMIN_PASSWORD=<strong password>
 
-# Feature Flags
-ENABLE_METRICS=true
-ENABLE_RATE_LIMITING=true
-ENABLE_SEMANTIC_CACHE=true
-ENABLE_ABUSE_DETECTION=true
-FEATURE_CONVERSATION_CONTEXT=true
-FEATURE_ANALYTICS=true
-```
 
 ---
 
