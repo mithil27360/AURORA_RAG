@@ -169,9 +169,6 @@ docker compose -f docker-compose.prod.yml up -d --build
 ## Configuration
 
 ```env
-# Application
-
-
 # LLM (comma-separated keys for rotation)
 GROQ_API_KEY=gsk_key1,gsk_key2,gsk_key3
 LLM_MODEL=llama-3.3-70b-versatile
@@ -194,6 +191,7 @@ GRAFANA_ADMIN_USER=admin
 GRAFANA_ADMIN_PASSWORD=<strong password>
 PROMETHEUS_ADMIN_PASSWORD=<strong password>
 
+```
 
 ---
 
