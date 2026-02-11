@@ -63,20 +63,9 @@ Security Gate (IP hashing, abuse check, content moderation)
 
 ### Scaling Strategies
 
-- Async I/O with `asyncio.to_thread()` for blocking operations
 - Hard timeouts: 10s vector search, 30s LLM, 90s total
-- Background task offload for analytics and logging
 - Query normalization to improve cache hit rates
 - Rate limiting: 60 req/min per IP with burst protection
-
-### Data Chunking Strategy
-
-- Master event list (single chunk for broad queries)
-- Events by type: workshops, hackathons, competitions, talks
-- Per-event details: name, date, venue, description, topics
-- Per-day schedule: time, duration, prerequisites
-- FAQ pairs for direct question-answer matching
-- Chunk size: 200–400 tokens for retrieval precision
 
 ---
 
@@ -88,21 +77,14 @@ Security Gate (IP hashing, abuse check, content moderation)
 - Query expansion with synonym and technical term handling
 - Fuzzy matching for event names, abbreviations, and typos
 
-**Conversation Management**
-- Multi-turn context via UUID sessions (last 10 turns, 1-hour TTL)
-- Entity extraction: events, dates, times, venues
-- Context-aware query rewriting for follow-up questions
-
 **Security & Privacy**
 - AES-256-CBC encryption for PII, SHA-256 IP hashing
 - Raw IPs deleted after 48 hours (GDPR-compliant)
-- Right-to-deletion endpoints, HKDF key derivation
-
+- 
 **Analytics**
 - Real-time dashboard: confidence scores, cache tier breakdown, top queries
 - Prometheus metrics: request durations, cache hits/misses, intent distribution, abuse violations
 - Grafana dashboards: Realtime (5-min window) + Cumulative (all-time)
-- Geolocation enrichment, device/OS/browser telemetry
 
 ---
 
