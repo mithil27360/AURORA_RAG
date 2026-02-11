@@ -15,7 +15,7 @@ Event assistant chatbot serving 115 users and processing 1,372 total queries (85
 | Latency Reduction | ~99.5% |
 | Cache Hit Rate | ~36.5% |
 | Peak Load | 413 queries/day |
-| Uptime | 100% |
+
 
 
 ---
@@ -106,15 +106,7 @@ Security Gate (IP hashing, abuse check, content moderation)
 
 ## Deployment
 
-### Container Stack
 
-| Service | Config |
-|:--------|:-------|
-| aurora-chatbot | 2 workers, 2GB RAM limit |
-| redis | 256MB, AOF persistence |
-| prometheus | 30-day retention, HTTPS |
-| grafana | 2 dashboards, auto-provisioned |
-| nginx | Optional reverse proxy |
 
 ### Quick Start
 
