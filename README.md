@@ -75,7 +75,7 @@ Security Gate (IP hashing, abuse check, content moderation)
 **Security & Privacy**
 - AES-256-CBC encryption for PII, SHA-256 IP hashing
 - Raw IPs deleted after 48 hours (GDPR-compliant)
-- 
+  
 **Analytics**
 - Real-time dashboard: confidence scores, cache tier breakdown, top queries
 - Prometheus metrics: request durations, cache hits/misses, intent distribution, abuse violations
