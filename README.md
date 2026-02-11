@@ -1,6 +1,6 @@
 # Aurora RAG Chatbot
 
-Event assistant chatbot serving **115 users** with **852 real queries** over 15 days at **100% uptime**. Engineered for high-traffic festival environments with multi-tier caching, intelligent query routing, and comprehensive security.
+Event assistant chatbot serving 115 users and processing 1,372 total queries (852 real + 520 stress test) over 15 days at 100% uptime. Built for high traffic fest environment with multi tier caching, intelligent query routing, and comprehensive security.
 
 ---
 
