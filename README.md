@@ -1,6 +1,6 @@
 # Aurora RAG Chatbot
 
-Event assistant chatbot serving 115 users and processing 1,372 total queries (852 real + 520 stress test) over 15 days at 100% uptime 
+Event assistant chatbot -  115 users processing 1,372 total queries (852 real + 520 stress test) over 15 days at 100% uptime 
 
 ---
 
