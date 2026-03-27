@@ -2,9 +2,11 @@
 
 A production-grade Retrieval-Augmented Generation (RAG) system designed to handle real-time, high-concurrency event queries with low latency and strong reliability guarantees.
 
-Served 400+ users and processed 3690+ queries over 15 days with 100% uptime, 1.2s average latency, and a 36.5% cache hit rate. Dual-layer caching reduced query latency from 4.2s to 18ms (99.6% improvement).
+Served 400+ users and processed 3690+ queries over 15 days with 100% uptime, 1.2s average latency, and a 36.5% cache hit rate — reducing query latency from 4.2s to 18ms (99.6% improvement) via multi-tier caching. Designed to support dynamic content updates from 80+ event coordinators (MCs) through a Google Sheets-based CMS. Designed and implemented the system end-to-end, including architecture, retrieval pipeline, caching, deployment, and monitoring.
 
 **Impact:** Reduced manual coordination effort for event organizers by automating FAQ handling and enabling real-time participant support at scale.
+
+**Role:** Technical Lead (Point of Contact) — led a team of 6 developers. Proposed and implemented the core system architecture (RAG pipeline, caching, deployment). Team contributions included data preparation (Google Sheets), embedding model experimentation, backup chatbot prototyping (Zapier/n8n), and testing/feedback to improve system accuracy and robustness.
 
 ---
 
@@ -22,10 +24,11 @@ Served 400+ users and processed 3690+ queries over 15 days with 100% uptime, 1.2
 | Avg Response Time | 1.2s |
 | Peak Load | 413 queries/day |
 | Cache Latency Improvement | 4.2s → 18ms (99.6% reduction) |
+| p95 Latency | <2.5s |
 
 ### System Efficiency Insights
 
-Reduced LLM calls by 36.5% via multi-tier caching. Dual-layer caching cut query latency from 4.2s to 18ms (99.6% improvement) at a 31% hit rate. Maintained sub-2s latency under peak load of 413 queries/day. Achieved consistent performance with only 2 Gunicorn workers through async-first design.
+Reduced LLM calls by 36.5% via multi-tier caching, achieving significant latency reduction (4.2s → 18ms, 99.6% improvement). Maintained sub-2s latency under peak load of 413 queries/day. Designed an async-first FastAPI pipeline enabling high concurrency with only 2 workers, maintaining stable latency under peak load.
 
 ---
 
@@ -36,7 +39,7 @@ Reduced LLM calls by 36.5% via multi-tier caching. Dual-layer caching cut query 
 | Backend | Python 3.11, FastAPI (async-first) |
 | Vector DB | ChromaDB (persistent, SQLite-based) |
 | LLM | Groq-hosted LLaMA 3 70B |
-| Cache | In-Memory LRU (L1) + Redis (L2) + Semantic Cache |
+| Cache | In-Memory LRU (L1) + Redis (L2) + Semantic Cache (embedding-based similarity lookup to reuse responses for semantically similar queries) |
 | Database | SQLite (WAL mode) |
 | Infrastructure | Docker Compose, Nginx, Gunicorn (2 workers) |
 | Monitoring | Prometheus, Grafana |
@@ -51,7 +54,7 @@ Reduced LLM calls by 36.5% via multi-tier caching. Dual-layer caching cut query 
 
 ```
 Security Gate (IP hashing, abuse detection, content moderation)
-    → Intent Classification (8 categories)
+    → Intent Classification (8 categories, lightweight keyword classifier)
     → Multi-Tier Cache Lookup (L1 → L2 → Semantic)
     → Vector Retrieval (ChromaDB, top-k=50)
     → Cross-Encoder Reranking (ms-marco-MiniLM-L-6-v2)
@@ -70,15 +73,21 @@ Security Gate (IP hashing, abuse detection, content moderation)
 
 ---
 
+## System Constraints
+
+Free-tier LLM API rate limits required aggressive caching and key rotation to maintain availability. Single-node deployment (Docker Compose) constrained horizontal scaling, pushing optimization toward async design and cache efficiency. Read-heavy workload with burst traffic patterns during live events demanded low-latency cache layers over raw compute. Cold-start latency of LLM responses required aggressive caching to maintain consistent UX. System was designed to handle dynamic updates from 80+ coordinators, requiring robustness to inconsistent, delayed, and concurrent data changes.
+
+---
+
 ## Scalability Approach
 
-Async FastAPI pipeline maximizes throughput under limited worker count. Multi-layer caching (L1 memory + L2 Redis + semantic cache) reduces compute-heavy retrieval. API key rotation bypasses LLM provider rate limits without downtime. Query normalization increases cache reuse across semantically similar inputs.
+Designed an async-first FastAPI pipeline enabling high concurrency with only 2 Gunicorn workers, maintaining stable latency under peak load. Multi-layer caching (L1 memory + L2 Redis + semantic cache) reduces compute-heavy retrieval. API key rotation bypasses LLM provider rate limits without downtime. Query normalization increases cache reuse across semantically similar queries.
 
 | Strategy | Detail |
 |:---------|:-------|
 | Hard Timeouts | 10s vector search, 30s LLM, 90s total |
 | Rate Limiting | 60 req/min per IP with burst protection |
-| Query Normalization | Improves cache hit rates across similar inputs |
+| Query Normalization | Increases cache reuse across semantically similar queries |
 | Key Rotation | Round-robin across Groq API keys with per-key tracking |
 
 ---
@@ -124,10 +133,10 @@ Non-technical organizers update content without code changes. Auto-sync every 5 
 ## Database Architecture
 
 **Redis** (256MB, LRU eviction, AOF persistence)
-Used for caching, sessions, and semantic lookup.
+Handles caching, sessions, and semantic lookup.
 
 **SQLite** (WAL mode, 64MB cache)
-Used for persistent logs, analytics, and backups.
+Stores persistent logs, analytics, and backups.
 
 ---
 
@@ -176,7 +185,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 ## Bottlenecks and Future Improvements
 
-**Current Bottleneck:** ChromaDB latency increases beyond 10K chunks due to linear scan overhead. Current scale is 500-1000 chunks with latency under 400ms, mitigated by a 36.5% cache hit rate.
+**Primary Bottleneck:** ChromaDB's linear scan retrieval introduces latency growth beyond ~10K chunks, making it unsuitable for large-scale deployments without ANN indexing. This creates a scaling ceiling, making approximate nearest neighbor (ANN) indexing necessary for production-scale datasets. Current scale is 500-1000 chunks with latency under 400ms, mitigated by a 36.5% cache hit rate.
 
 **Planned Improvements:**
 
@@ -186,7 +195,7 @@ Replace ChromaDB with FAISS or a hybrid ANN index for scale beyond 10K chunks. I
 
 ## Key Learnings
 
-Multi-tier caching is the single biggest lever for scaling LLM systems. Latency bottlenecks shift from retrieval to generation as scale increases. Simple architectures (SQLite + Redis) can outperform complex stacks at small scale when workload characteristics are understood upfront.
+Caching, not model optimization, is the dominant factor in real-world LLM system performance. Retrieval quality (reranking) often matters more than increasing model size. Over-engineering infrastructure early is less effective than optimizing for actual workload characteristics. Real-world performance improvements were driven more by system-level optimizations (caching, retrieval) than model-level changes.
 
 ---
 
@@ -215,6 +224,21 @@ GRAFANA_ADMIN_USER=admin
 GRAFANA_ADMIN_PASSWORD=<strong password>
 PROMETHEUS_ADMIN_PASSWORD=<strong password>
 ```
+
+---
+
+## Team Contributions
+
+| Area | Owner |
+|:-----|:------|
+| System Architecture | Mithil (Technical Lead) |
+| RAG Pipeline | Mithil |
+| Caching System | Mithil |
+| Deployment and Monitoring | Mithil |
+| Data Preparation (Google Sheets) | Team |
+| Embedding Model Experimentation | Team |
+| Backup Chatbot Prototyping (Zapier/n8n) | Team |
+| Testing and Feedback | Team |
 
 ---
 
