@@ -225,24 +225,6 @@ GRAFANA_ADMIN_PASSWORD=<strong password>
 PROMETHEUS_ADMIN_PASSWORD=<strong password>
 ```
 
----
-
-## Team Contributions
-
-| Area | Owner |
-|:-----|:------|
-| System Architecture | Mithil (Technical Lead) |
-| RAG Pipeline | Mithil |
-| Caching System | Mithil |
-| Deployment and Monitoring | Mithil |
-| Data Preparation (Google Sheets) | Team |
-| Embedding Model Experimentation | Team |
-| Backup Chatbot Prototyping (Zapier/n8n) | Team |
-| Testing and Feedback | Team |
-
----
-
-
 
 ## License
 
