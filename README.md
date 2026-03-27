@@ -1,8 +1,8 @@
 # Aurora RAG Chatbot
 
-A production-grade Retrieval-Augmented Generation (RAG) system designed to handle real-time, high-concurrency event queries with low latency and strong reliability guarantees.
+A RAG (Retrieval-Augmented Generation) system built for ISTE Aurora fest to answer real-time participant queries — schedules, venues, registrations, and FAQs  reliably and at scale.
 
-Served 400+ users and processed 3690+ queries over 15 days with 100% uptime, 1.2s average latency, and a 36.5% cache hit rate — reducing query latency from 4.2s to 18ms (99.6% improvement) via multi-tier caching. Designed to support dynamic content updates from 80+ event coordinators (MCs) through a Google Sheets-based CMS. Designed and implemented the system end-to-end, including architecture, retrieval pipeline, caching, deployment, and monitoring.
+Served 400+ users and processed 3690+ queries over 15 days with 100% uptime, 1.2s average latency, and a 36.5% cache hit rate , reducing query latency from 4.2s to 18ms (99.6% improvement) via multi-tier caching. Designed to support dynamic content updates from 80+ event coordinators (MCs) through a Google Sheets based CMS. Built end-to-end: architecture, retrieval pipeline, caching, deployment, and monitoring.
 
 **Impact:** Reduced manual coordination effort for event organizers by automating FAQ handling and enabling real-time participant support at scale.
 
@@ -225,6 +225,7 @@ GRAFANA_ADMIN_PASSWORD=<strong password>
 PROMETHEUS_ADMIN_PASSWORD=<strong password>
 ```
 
+---
 
 ## License
 
