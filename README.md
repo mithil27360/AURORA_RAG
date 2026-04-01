@@ -49,6 +49,8 @@ Reduced LLM calls by 36.5% via multi-tier caching, achieving significant latency
 ---
 
 ## Architecture
+<img width="260" height="549" alt="image" src="https://github.com/user-attachments/assets/2d0545ff-887d-4764-a17d-2effe47c5a84" />
+
 
 ### Request Flow
 
